@@ -1,0 +1,14 @@
+import { MatchEngine } from '../src/game/engine/MatchEngine';
+import { makeGame } from '../src/game/render/MatchScene';
+import { InputController, DEFAULT_BINDINGS } from '../src/game/input';
+import { fixtureConfig, fixtureTeam } from '../tests/fixtures';
+const q = new URLSearchParams(location.search);
+const home = fixtureTeam('hom'); home.abbr = 'HAR'; home.colors = ['#c8102e', '#f2f2f2'];
+const away = fixtureTeam('awy'); away.abbr = 'MES'; away.colors = ['#1d428a', '#ffc72c'];
+home.players.forEach((p, i) => (p.appearance = { skin: i % 6, hair: i % 8, hairColor: i % 6, build: i % 3, accessory: (['headband', 'none', 'wristbands', 'goggles', 'armsleeve'] as const)[i % 5], beard: i % 4 === 0 }));
+away.players.forEach((p, i) => (p.appearance = { skin: (i + 3) % 6, hair: (i + 2) % 8, hairColor: (i + 1) % 6, build: (i + 1) % 3 }));
+const userSide = q.get('user') === 'none' ? null : 0;
+const e = new MatchEngine(fixtureConfig(Number(q.get('seed') || 3), { home, away, userSide, mode: (q.get('mode') as any) || 'game' }));
+(window as any).engine = e;
+const input = new InputController(DEFAULT_BINDINGS);
+(window as any).game = makeGame(document.getElementById('g')!, { engine: e, input, arena: { primary: home.colors[0], secondary: home.colors[1], abbr: 'HAR', city: 'Harbor City', awayPrimary: away.colors[0], leagueName: 'Pixel League', seed: 7 }, hooks: { onPause: () => console.log('pause'), onTimeout: () => console.log('timeout'), onFinal: () => console.log('final') }, showHints: true });
