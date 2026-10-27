@@ -145,6 +145,14 @@ export type Tactics = {
   rebounding: number;
 };
 
+/** A CPU club's offer of one draft pick for one of the user's players. */
+export type TradeOffer = {
+  id: string;
+  teamId: string;
+  playerId: string;
+  pick: { season: number; round: 1 | 2; originalTeamId: string };
+};
+
 export type DraftPick = {
   season: number;
   round: 1 | 2;
@@ -351,6 +359,10 @@ export type LeagueSave = {
   achievements: string[];
   /** Coins from the last applied user game, for the postgame reward animation. */
   lastReward?: { gameId: string; coins: number; reasons: string[] };
+  /** Trade offer waiting for the user's answer. */
+  tradeOffer?: TradeOffer;
+  /** Players already shopped for a trade, keyed to the day they were shopped (one ask per day). */
+  tradeAsked?: Record<string, string>;
 };
 
 export type Objective = {

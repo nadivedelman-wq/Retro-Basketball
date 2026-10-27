@@ -52,7 +52,7 @@ export function validateLeague(league: LeagueSave) {
   for (const id of league.freeAgents) if (owner.has(id)) throw new TxError('A free agent is also on a roster.');
 }
 
-const rngFor = (league: LeagueSave) => new Rng((league.rngState ^ league.nextId * 2654435761) >>> 0);
+export const rngFor = (league: LeagueSave) => new Rng((league.rngState ^ league.nextId * 2654435761) >>> 0);
 
 export const SCOUT_COST = 2;
 

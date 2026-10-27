@@ -5,6 +5,7 @@
  */
 import { Rng, clamp } from '../core/rng';
 import { emptyStats, type DraftState, type LeagueSave, type Player, type RecordEntry, type SeasonAwards, type Team } from '../core/types';
+import { DRAFT_PASS } from './config';
 import { canSign, payroll, rookieSalary, round1, MIN_SALARY } from './economy';
 import { ROSTER_MAX, addNews, buildSchedule, defaultObjectives, newId, placeNewPlayer, repairRotation, sortRotation, staffCandidates, standings, teamById, userTeam } from './league';
 import { ageOneYear, fullName, generatePlayer, marketSalary, stars } from './players';
@@ -228,6 +229,7 @@ export function runLottery(league: LeagueSave, rng: Rng) {
     prospects.push(p.id);
   }
   league.draft = { order, prospectIds: prospects, current: 0, log: [], lottery };
+  league.tradeOffer = undefined; // the draft order is set: open offers for these picks lapse
   league.offseasonStep = 'draft';
   const up = lottery.find((l) => l.teamId === league.userTeamId);
   if (up) addNews(league, `Draft lottery: you pick #${up.pick} (entered as #${up.seed} odds).`, up.pick < up.seed ? 'good' : 'info');
@@ -275,6 +277,24 @@ export function skipPick(league: LeagueSave) {
   const d = league.draft!;
   d.log.push({ pick: d.order[d.current].pick, round: d.order[d.current].round, teamId: d.order[d.current].teamId, playerId: '' });
   d.current++;
+}
+
+/** Coach Coins for passing on a pick: first-round picks pay more the earlier they are. */
+export function passPickCoins(league: LeagueSave, slot: { round: number; pick: number }) {
+  if (slot.round === 2) return DRAFT_PASS.secondRound;
+  const span = Math.max(1, league.teams.length - 1);
+  return Math.round(DRAFT_PASS.firstRoundMax - ((slot.pick - 1) * (DRAFT_PASS.firstRoundMax - DRAFT_PASS.firstRoundMin)) / span);
+}
+
+/** The user passes on the pick on the clock and takes Coach Coins instead. */
+export function passPickForCoins(league: LeagueSave) {
+  const slot = currentPick(league);
+  if (!slot || slot.teamId !== league.userTeamId) throw new Error('You are not on the clock.');
+  const coins = passPickCoins(league, slot);
+  teamById(league, league.userTeamId).credits += coins;
+  skipPick(league);
+  addNews(league, `Passed on pick ${slot.round}-${slot.pick} and took ${coins} CC.`, 'good');
+  return `Took ${coins} CC for pick ${slot.round}-${slot.pick}.`;
 }
 
 /** CPU teams pick until it is the user's turn (or the draft ends). */

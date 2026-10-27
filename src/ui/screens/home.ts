@@ -8,6 +8,7 @@ import { advanceDay, nextUserGame, simToUserGame, userSeries, winsNeeded, withRn
 import type { App } from '../app';
 import { h } from '../dom';
 import { badge, capSummary, meter, screenTitle, shell, starsEl } from '../widgets';
+import { tradeCard } from '../trade';
 
 /** Simulate the user's next game (and everything before it). Returns the game id. */
 export function simNextUserGame(app: App): string | null {
@@ -189,6 +190,6 @@ export function homeScreen(app: App) {
     app,
     'home',
     screenTitle('Franchise Home', h('span', { class: 'muted' }, l.phase === 'playoffs' ? 'Playoffs' : `Regular season • ${l.schedule.filter((g) => !g.playoff && g.played && (g.homeId === t.id || g.awayId === t.id)).length}/${l.settings.seasonGames} played`)),
-    h('div', { class: 'grid two' }, h('div', { class: 'col', style: 'gap:14px' }, nextCard, eventCard(app, l) ?? h('div'), status), h('div', { class: 'col', style: 'gap:14px' }, objectives, injuries, news)),
+    h('div', { class: 'grid two' }, h('div', { class: 'col', style: 'gap:14px' }, nextCard, tradeCard(app) ?? h('div'), eventCard(app, l) ?? h('div'), status), h('div', { class: 'col', style: 'gap:14px' }, objectives, injuries, news)),
   );
 }

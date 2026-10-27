@@ -56,6 +56,8 @@ Keys can be rebound in **Settings**. With a mouse, click a teammate to pass to h
 - **Spending**: Fan Engagement, Training and Recovery upgrades (three levels each); Basic, Strong and Elite offensive, defensive and development coaches; team dinners; permanent cap expansions at escalating prices. All prices live in `src/sim/config.ts`.
 - **Player Market**: 3-5 saved offers of 4.0, 4.5 or 5.0-star players. Offers refresh every 3 of your games and cannot be rerolled. Signing needs enough CC, enough cap room and an open roster spot.
 - **Morale**: every contracted player has a 0-100 meter with a label (Excellent, Good, Frustrated, Unhappy, Disengaged) and a reason, such as "Morale -8: limited minutes in last 3 games". Stars expect more minutes and touches than reserves. Defensive specialists are not judged on touches. One rest game barely matters. Morale scales ratings within -12% to +4%.
+- **Trades**: clubs offer draft picks for your players. After a regular-season game a club may make an offer on its own; it waits on Franchise Home until you accept or decline. Or press **Trade** on a player's profile and a pop-up asks whether you accept the best offer, such as "Cleveland is offering their first-round pick". Better and younger high-potential players draw first-rounders, lesser ones second-rounders, and 0.5-1 star players draw none. Each player can be shopped once per day, and trades close during the draft. Acquired picks are used in the draft.
+- **Pass for coins**: when you are on the clock in the draft you can pass and take Coach Coins instead: 20 CC for the first pick down to 8 CC for the last first-rounder, 4 CC in the second round.
 - Weekly events, rotation and playbook, injuries, two-round draft with fuzzy scouting, re-signings, awards, records and history.
 - Live and simulated games feed the same `applyGameResult`, which is idempotent per game id, so a game can never pay coins twice.
 
@@ -67,7 +69,7 @@ Keys can be rebound in **Settings**. With a mouse, click a teammate to pass to h
 
 - The game clock always shows 12:00 quarters; it runs faster to fit the chosen real-time quarter length (1, 2, 3 or 5 minutes). The shot clock runs at a slower multiplier so possessions stay playable. Short quarters mean fewer possessions, so scores scale with quarter length (about 55-60 points per team with 3-minute quarters). Simulated games use the same possession count as live games at the chosen length, so league stats stay comparable.
 - Backcourt, 8-second and 5-second inbound violations are not enforced yet.
-- Trades are not implemented (listed as v2 in the spec). Draft pick ownership is tracked so trades can slot in later.
+- Trades are player-for-pick deals offered by CPU clubs; you cannot yet offer your own picks or build multi-player trades.
 - Besides the empty starter slots, the bench is topped up to two with replacements on game day so foul trouble and fatigue can always be covered.
 - Users add talent through the Player Market, the draft and re-signings. The lower-rated free-agent pool is used by CPU teams.
 

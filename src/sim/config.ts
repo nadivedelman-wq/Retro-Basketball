@@ -67,6 +67,19 @@ export const MARKET = {
   refreshEveryGames: 3,
 };
 
+/** Trades: CPU clubs give draft picks for your players. */
+export const TRADES = {
+  /** Chance after each of your regular-season games that a club makes an offer on its own. */
+  offerChance: 0.2,
+  /** Trade value (stars, plus upside for players 24 and under) that draws a first-round pick. */
+  firstRoundValue: 2.5,
+  /** Below this value no club offers a pick. */
+  secondRoundValue: 1,
+};
+
+/** Coach Coins for passing on a draft pick: first-round picks pay from pick 1 down to the last pick. */
+export const DRAFT_PASS = { firstRoundMax: 20, firstRoundMin: 8, secondRound: 4 };
+
 export const CAP_UPGRADE = { stepM: 5, baseCost: 60, growth: 1.5 };
 
 /** Morale bands and their bounded rating modifier. */

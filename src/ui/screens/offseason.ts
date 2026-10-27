@@ -3,7 +3,7 @@ import { sfx } from '../../audio/sfx';
 import type { LeagueSave } from '../../core/types';
 import { payroll } from '../../sim/economy';
 import { teamById, userTeam } from '../../sim/league';
-import { advanceOffseason, currentPick, draftPlayer, finishDraft, finishResignings, prospectValue, runCpuPicks, runLottery, skipPick, startNewSeason } from '../../sim/offseason';
+import { advanceOffseason, currentPick, draftPlayer, finishDraft, finishResignings, passPickCoins, passPickForCoins, prospectValue, runCpuPicks, runLottery, startNewSeason } from '../../sim/offseason';
 import { fullName, stars } from '../../sim/players';
 import { withRng } from '../../sim/season';
 import { SCOUT_COST, askingContract, letWalk, resignPlayer, scoutProspect } from '../../sim/transactions';
@@ -140,7 +140,19 @@ export function offseasonScreen(app: App) {
           ? h(
               'div',
               { class: 'row', style: 'margin-top:8px' },
-              h('button', { class: 'btn', onclick: () => { app.mutate((dd) => { skipPick(dd); runCpuPicks(dd); }); app.go('offseason'); } }, 'Pass on this pick'),
+              h(
+                'button',
+                {
+                  class: 'btn',
+                  onclick: async () => {
+                    const coins = passPickCoins(l, pick!);
+                    if (!(await app.confirm('Pass on this pick?', `Skip pick ${pick!.round}-${pick!.pick} and take ${coins} Coach Coins instead. You won't draft a player with it.`, `Take ${coins} CC`))) return;
+                    if (app.mutate((dd) => { const msg = passPickForCoins(dd); runCpuPicks(dd); return msg; })) sfx.confirm();
+                    app.go('offseason');
+                  },
+                },
+                `Pass: take ${passPickCoins(l, pick!)} CC`,
+              ),
               h('button', { class: 'btn', onclick: () => { app.mutate((dd) => { draftPlayer(dd, prospects[0].id); runCpuPicks(dd); }); sfx.confirm(); app.go('offseason'); } }, 'Auto-pick best available'),
             )
           : h('div', { class: 'row', style: 'margin-top:8px' }, h('button', { class: 'btn primary', onclick: () => { app.mutate((dd) => finishDraft(dd)); app.go('offseason'); } }, 'On to free agency ▶')),
