@@ -3,6 +3,7 @@ import { sfx } from './audio/sfx';
 import { App } from './ui/app';
 import { applyPalette } from './ui/palette';
 import { marketScreen } from './ui/screens/market';
+import { freeAgentsScreen } from './ui/screens/freeAgents';
 import { capScreen } from './ui/screens/cap';
 import { loadScreen, newCareerScreen } from './ui/screens/career';
 import { liveGameScreen, postgameScreen, pregameScreen, quickScreen } from './ui/screens/game';
@@ -46,6 +47,7 @@ async function boot() {
   app.register('offseason', offseasonScreen);
   app.register('quick', quickScreen);
   app.register('market', marketScreen);
+  app.register('freeAgents', freeAgentsScreen);
   (window as unknown as { app: App }).app = app;
   const unlock = () => sfx.unlock();
   window.addEventListener('pointerdown', unlock, { once: true });

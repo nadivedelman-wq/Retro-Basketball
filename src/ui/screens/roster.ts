@@ -5,7 +5,7 @@ import { releaseCost } from '../../sim/economy';
 import { teamById, userTeam } from '../../sim/league';
 import { ARCHETYPES, TRAITS, fullName, overall, stars } from '../../sim/players';
 import { editPlayer, releasePlayer } from '../../sim/transactions';
-import { shopPlayer } from '../../sim/trades';
+import { pickStarRange, shopPick, shopPlayer, userPickLabel, userPicks } from '../../sim/trades';
 import { showTradeOffer } from '../trade';
 import type { App } from '../app';
 import { fmtMoney, h, pct, perGame } from '../dom';
@@ -270,5 +270,42 @@ export function rosterScreen(app: App) {
       ),
     ),
     h('section', { class: 'panel', style: 'margin-top:14px' }, h('h2', null, 'Details'), rosterTable(app, l, players)),
+    picksPanel(app),
+  );
+}
+
+/** The user's draft picks, each with a Trade button that asks clubs for a player. */
+function picksPanel(app: App) {
+  const l = app.league!;
+  const picks = userPicks(l);
+  return h(
+    'section',
+    { class: 'panel', style: 'margin-top:14px' },
+    h('h2', null, 'Draft picks'),
+    h('div', { class: 'tiny muted', style: 'margin-bottom:6px' }, 'Trade a pick to a club for one of its players. Earlier picks fetch better players. You need an open roster spot and cap room for his salary.'),
+    picks.length
+      ? h(
+          'div',
+          { class: 'col', style: 'gap:6px' },
+          picks.map((pk) => {
+            const [lo, hi] = pickStarRange(l, pk);
+            return h(
+              'div',
+              { class: 'row' },
+              h('span', { style: 'flex:1;min-width:200px' }, userPickLabel(l, pk).replace(/^your /, ''), h('div', { class: 'tiny muted' }, `Clubs offer ${lo.toFixed(1)} to ${hi.toFixed(1)}-star players`)),
+              h(
+                'button',
+                {
+                  class: 'btn small',
+                  onclick: () => {
+                    if (app.commit(shopPick(app.league!, pk)) && app.league?.tradeOffer?.userGives === 'pick') showTradeOffer(app);
+                  },
+                },
+                'Trade',
+              ),
+            );
+          }),
+        )
+      : h('div', { class: 'muted' }, 'You have no draft picks to trade.'),
   );
 }

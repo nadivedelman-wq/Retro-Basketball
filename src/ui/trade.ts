@@ -1,5 +1,6 @@
 import { teamName } from '../sim/data';
 import { teamById } from '../sim/league';
+import { runCpuPicks } from '../sim/offseason';
 import { fullName, stars } from '../sim/players';
 import { acceptTrade, declineTrade, offerText, pickLabel } from '../sim/trades';
 import type { App } from './app';
@@ -15,16 +16,35 @@ function offerBody(app: App) {
     'div',
     { class: 'col' },
     h('div', { class: 'row' }, badge(club, 32), h('p', { style: 'margin:0;flex:1' }, offerText(l, o))),
-    h('div', null, 'You give: ', h('b', null, fullName(p)), ' ', starsEl(stars(p)), ` ${p.position}, age ${p.age}, ${fmtMoney(p.contract.salaryMillions)} x ${p.contract.yearsRemaining}`),
-    h('div', null, 'You get: ', h('b', { class: 'gold' }, pickLabel(l, o).replace(/^their /, `${teamName(club)}'s `))),
-    h('div', { class: 'tiny muted' }, `Frees ${fmtMoney(p.contract.salaryMillions)} of cap space. Empty lineup spots are filled by replacements.`),
+    ...(o.userGives === 'pick'
+      ? [
+          h('div', null, 'You give: ', h('b', null, pickLabel(l, o).replace(/^your /, ''))),
+          h('div', null, 'You get: ', h('b', { class: 'gold' }, fullName(p)), ' ', starsEl(stars(p)), ` ${p.position}, age ${p.age}, ${fmtMoney(p.contract.salaryMillions)} x ${p.contract.yearsRemaining}`),
+          h('div', { class: 'tiny muted' }, `Uses ${fmtMoney(p.contract.salaryMillions)} of cap space and one roster spot.`),
+        ]
+      : [
+          h('div', null, 'You give: ', h('b', null, fullName(p)), ' ', starsEl(stars(p)), ` ${p.position}, age ${p.age}, ${fmtMoney(p.contract.salaryMillions)} x ${p.contract.yearsRemaining}`),
+          h('div', null, 'You get: ', h('b', { class: 'gold' }, pickLabel(l, o).replace(/^their /, `${teamName(club)}'s `))),
+          h('div', { class: 'tiny muted' }, `Frees ${fmtMoney(p.contract.salaryMillions)} of cap space. Empty lineup spots are filled by replacements.`),
+        ]),
   );
 }
 
 function answerButtons(app: App, done?: () => void) {
   return [
     h('button', { class: 'btn', onclick: () => { done?.(); app.commit(declineTrade(app.league!)); } }, 'Decline'),
-    h('button', { class: 'btn primary', onclick: () => { done?.(); app.commit(acceptTrade(app.league!)); } }, 'Accept'),
+    h(
+      'button',
+      {
+        class: 'btn primary',
+        onclick: () => {
+          done?.();
+          // Trading away the pick on the clock hands the turn to the club, so the draft moves on.
+          if (app.commit(acceptTrade(app.league!)) && app.league?.offseasonStep === 'draft') app.mutate((d) => runCpuPicks(d));
+        },
+      },
+      'Accept',
+    ),
   ];
 }
 

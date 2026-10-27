@@ -75,6 +75,25 @@ export const TRADES = {
   firstRoundValue: 2.5,
   /** Below this value no club offers a pick. */
   secondRoundValue: 1,
+  /** Best player a first-round pick fetches (the #1 pick); the last first-rounder fetches a star less. */
+  firstRoundPlayerMax: 3.5,
+  /** Star range of the player a second-round pick fetches. */
+  secondRoundPlayer: [1, 2] as [number, number],
+};
+
+/** Free agents: a paged board of 0.5 to 3.5-star players you sign with Coach Coins plus cap room. */
+export const FREE_AGENTS = {
+  /** Players generated on each refresh. */
+  poolSize: 40,
+  perPage: 10,
+  /** The board turns over by itself after this many of your regular-season games. */
+  refreshEveryGames: 5,
+  /** Coach Coins to refresh the board right away. */
+  refreshCost: 30,
+  /** How often each star level appears in a fresh board. */
+  starWeights: { 0.5: 4, 1: 6, 1.5: 7, 2: 7, 2.5: 6, 3: 5, 3.5: 3 } as Record<number, number>,
+  /** Coach Coins to sign, by star rating (players above 3.5 stars cost the last entry). */
+  signFee: { 0.5: 1, 1: 2, 1.5: 3, 2: 5, 2.5: 7, 3: 10, 3.5: 14, 4: 18 } as Record<number, number>,
 };
 
 /** Coach Coins for passing on a draft pick: first-round picks pay from pick 1 down to the last pick. */

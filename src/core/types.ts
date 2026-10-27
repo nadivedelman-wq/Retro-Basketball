@@ -151,6 +151,8 @@ export type TradeOffer = {
   teamId: string;
   playerId: string;
   pick: { season: number; round: 1 | 2; originalTeamId: string };
+  /** 'pick': the user gives the pick and gets the club's player. Otherwise the user gives the player. */
+  userGives?: 'player' | 'pick';
 };
 
 export type DraftPick = {
@@ -359,6 +361,8 @@ export type LeagueSave = {
   achievements: string[];
   /** Coins from the last applied user game, for the postgame reward animation. */
   lastReward?: { gameId: string; coins: number; reasons: string[] };
+  /** Your regular-season games until the free-agent board refreshes by itself. */
+  freeAgentRefreshIn?: number;
   /** Trade offer waiting for the user's answer. */
   tradeOffer?: TradeOffer;
   /** Players already shopped for a trade, keyed to the day they were shopped (one ask per day). */

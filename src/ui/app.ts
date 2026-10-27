@@ -22,7 +22,8 @@ export type Screen =
   | 'postgame'
   | 'offseason'
   | 'quick'
-  | 'market';
+  | 'market'
+  | 'freeAgents';
 
 export type ScreenFn = (app: App, params: Record<string, unknown>) => HTMLElement;
 

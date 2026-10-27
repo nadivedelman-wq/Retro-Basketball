@@ -55,6 +55,7 @@ const NAV: [Screen, string][] = [
   ['roster', 'Roster'],
   ['lineup', 'Lineup'],
   ['market', 'Market'],
+  ['freeAgents', 'Free Agents'],
   ['cap', 'Contracts'],
   ['office', 'Front Office'],
   ['league', 'League'],

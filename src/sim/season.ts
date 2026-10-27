@@ -9,6 +9,7 @@ import { emptyStats, type BoxLine, type BoxScore, type LeagueSave, type Player, 
 import { COINS } from './config';
 import { tickMarket } from './market';
 import { maybeCpuTradeOffer } from './trades';
+import { refreshFreeAgents, tickFreeAgents } from './freeAgents';
 import { updateMorale } from './morale';
 import { maybeTriggerEvent } from './events';
 import { simulateGame } from './gameSim';
@@ -188,6 +189,7 @@ export function applyGameResult(league: LeagueSave, box: BoxScore, rng: Rng): bo
     if (reward) league.lastReward = reward;
     if (league.market) tickMarket(league, rng);
     if (!playoff) maybeCpuTradeOffer(league, rng);
+    if (!playoff) tickFreeAgents(league, rng);
     const userWon = (home.id === user) === homeWon;
     const opp = home.id === user ? away : home;
     addNews(
@@ -346,6 +348,7 @@ export function startAtSeasonFinale(league: LeagueSave) {
   league.pendingEvent = undefined;
   league.lastReward = undefined;
   league.tradeOffer = undefined;
+  withRng(league, (rng) => refreshFreeAgents(league, rng));
   addNews(league, `You take over a ${user.wins}-${user.losses} team, last in the league, with one game left in the season.`, 'info');
   league.updatedAt = Date.now();
 }
