@@ -1,3 +1,4 @@
+import { teamName } from '../../sim/data';
 import { HAIR_COLORS, HAIR_STYLES, SKIN_TONES } from '../../art/playerSprite';
 import type { Appearance, LeagueSave, Player, PlayerStats } from '../../core/types';
 import { releaseCost } from '../../sim/economy';
@@ -41,7 +42,7 @@ export function openPlayer(app: App, playerId: string) {
         h('div', { class: 'x3' }, `#${p.jerseyNumber} ${fullName(p)}`),
         h('div', { class: 'muted' }, `${p.position}${p.secondaryPosition ? '/' + p.secondaryPosition : ''} • ${p.archetype} • ${heightStr(p.heightCm)} • ${p.weightKg} kg • ${p.hand === 'L' ? 'Lefty' : 'Righty'} • Age ${p.age}`),
         h('div', null, 'Current ', starsEl(stars(p)), h('span', { class: 'muted' }, ` (${overall(p).toFixed(1)} ovr) `), ' Potential ', pot === null ? h('span', { class: 'muted' }, '?') : starsEl(pot)),
-        h('div', { class: 'muted' }, team ? h('span', null, badge(team, 20), ` ${team.city} ${team.name}`) : 'Free agent', ` • ${p.personality}`),
+        h('div', { class: 'muted' }, team ? h('span', null, badge(team, 20), ` ${teamName(team)}`) : 'Free agent', ` • ${p.personality}`),
         h('div', null, `Contract ${fmtMoney(p.contract.salaryMillions)} • ${p.contract.yearsRemaining} yr${p.contract.yearsRemaining === 1 ? '' : 's'} left`, p.demand ? h('span', { class: 'warn' }, ` • asking ${fmtMoney(p.demand.salaryMillions)} x${p.demand.yearsRemaining}`) : null),
         p.injury ? h('div', { class: 'bad' }, `Injured: ${p.injury.type} (${p.injury.gamesRemaining} games)`) : null,
         p.draft ? h('div', { class: 'tiny muted' }, `Drafted S${p.draft.season} round ${p.draft.round} pick ${p.draft.pick} by ${teamById(l, p.draft.teamId).abbr}`) : null,

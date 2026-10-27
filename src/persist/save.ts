@@ -3,6 +3,7 @@
  * when IndexedDB is unavailable), one record per slot. Every save carries a version and
  * passes through ordered migrations on load. Saves can be exported/imported as JSON.
  */
+import { teamName } from '../sim/data';
 import type { LeagueSave } from '../core/types';
 import { DEFAULT_BINDINGS, type KeyBindings } from '../game/input';
 import { Rng } from '../core/rng';
@@ -182,7 +183,7 @@ export async function listSlots(): Promise<SlotMeta[]> {
         continue;
       }
       const t = l.teams.find((x) => x.id === l.userTeamId)!;
-      out.push({ slot, coach: l.coach.name, team: `${t.city} ${t.name}`, season: l.season, record: `${t.wins}-${t.losses}`, updatedAt: l.updatedAt });
+      out.push({ slot, coach: l.coach.name, team: `${teamName(t)}`, season: l.season, record: `${t.wins}-${t.losses}`, updatedAt: l.updatedAt });
     } catch {
       out.push({ slot, empty: true });
     }

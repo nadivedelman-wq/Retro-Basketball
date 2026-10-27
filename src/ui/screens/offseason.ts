@@ -1,3 +1,4 @@
+import { teamName } from '../../sim/data';
 import { sfx } from '../../audio/sfx';
 import type { LeagueSave } from '../../core/types';
 import { payroll } from '../../sim/economy';
@@ -28,7 +29,7 @@ function seasonSummary(l: LeagueSave) {
     'section',
     { class: 'panel' },
     h('h2', null, `Season ${l.season} in review`),
-    champ ? h('div', { class: 'row' }, badge(champ, 48), h('div', null, h('div', { class: 'muted' }, 'Champions'), h('div', { class: 'x3 gold' }, `${champ.city} ${champ.name}`))) : null,
+    champ ? h('div', { class: 'row' }, badge(champ, 48), h('div', null, h('div', { class: 'muted' }, 'Champions'), h('div', { class: 'x3 gold' }, `${teamName(champ)}`))) : null,
     h(
       'div',
       { class: 'col', style: 'gap:4px;margin-top:10px' },

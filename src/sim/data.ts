@@ -1,4 +1,4 @@
-/** Fictional league data: cities, clubs and name pools. None of these are real franchises. */
+/** League data: clubs are based on real NBA cities and colours but carry no team nicknames; name pools are fictional. */
 
 export type TeamSeed = {
   city: string;
@@ -11,43 +11,46 @@ export type TeamSeed = {
   strength: string;
 };
 
+/** Display name for a club: the city, plus a nickname when one is set. */
+export const teamName = (t: { city: string; name: string }) => (t.name ? `${t.city} ${t.name}` : t.city);
+
 export const TEAM_SEEDS: TeamSeed[] = [
-  // East — Harbor division
-  { city: 'Harbor City', name: 'Gulls', abbr: 'HCG', colors: ['#c8102e', '#f2f2f2'], conference: 'East', division: 'Harbor', budget: 'large', strength: 'Shooting' },
-  { city: 'Port Calloway', name: 'Lanterns', abbr: 'PCL', colors: ['#f2a900', '#1c1c3c'], conference: 'East', division: 'Harbor', budget: 'mid', strength: 'Guards' },
-  { city: 'New Halden', name: 'Ironclads', abbr: 'NHI', colors: ['#3d4a5c', '#e5c07b'], conference: 'East', division: 'Harbor', budget: 'large', strength: 'Defense' },
-  { city: 'Bayshore', name: 'Breakers', abbr: 'BAY', colors: ['#0f7fa8', '#f7f1e3'], conference: 'East', division: 'Harbor', budget: 'mid', strength: 'Pace' },
-  { city: 'Kingsbridge', name: 'Monarchs', abbr: 'KGB', colors: ['#5b2a86', '#f4c542'], conference: 'East', division: 'Harbor', budget: 'small', strength: 'Size' },
-  // East — Rust division
-  { city: 'Steelhaven', name: 'Forge', abbr: 'STF', colors: ['#d4571c', '#232323'], conference: 'East', division: 'Rust', budget: 'mid', strength: 'Rebounding' },
-  { city: 'Millbrook', name: 'Grinders', abbr: 'MIL', colors: ['#6b4f2a', '#efe6d2'], conference: 'East', division: 'Rust', budget: 'small', strength: 'Defense' },
-  { city: 'Lake Verona', name: 'Pikes', abbr: 'LVP', colors: ['#1f6f50', '#d9e4dd'], conference: 'East', division: 'Rust', budget: 'mid', strength: 'Passing' },
-  { city: 'Granite Falls', name: 'Rockhounds', abbr: 'GFR', colors: ['#7a7d85', '#b8202f'], conference: 'East', division: 'Rust', budget: 'small', strength: 'Size' },
-  { city: 'Old Fenwick', name: 'Foxes', abbr: 'OFF', colors: ['#e0662a', '#20304a'], conference: 'East', division: 'Rust', budget: 'mid', strength: 'Athletes' },
-  // East — Pine division
-  { city: 'Cedar Point', name: 'Ospreys', abbr: 'CPT', colors: ['#2e5e3a', '#c7a46b'], conference: 'East', division: 'Pine', budget: 'mid', strength: 'Depth' },
-  { city: 'Ashford', name: 'Aviators', abbr: 'ASH', colors: ['#2457a6', '#ff7a1a'], conference: 'East', division: 'Pine', budget: 'large', strength: 'Pace' },
-  { city: 'Briar Glen', name: 'Bramblers', abbr: 'BGB', colors: ['#f5d10a', '#141414'], conference: 'East', division: 'Pine', budget: 'small', strength: 'Guards' },
-  { city: 'Northgate', name: 'Sentinels', abbr: 'NGS', colors: ['#14284b', '#c9d2e3'], conference: 'East', division: 'Pine', budget: 'large', strength: 'Defense' },
-  { city: 'Riverton', name: 'Otters', abbr: 'RVR', colors: ['#16a0a0', '#0e2a3a'], conference: 'East', division: 'Pine', budget: 'mid', strength: 'Shooting' },
-  // West — Mesa division
-  { city: 'Mesa Roja', name: 'Vipers', abbr: 'MRV', colors: ['#a31f34', '#f0b323'], conference: 'West', division: 'Mesa', budget: 'mid', strength: 'Athletes' },
-  { city: 'Dustwater', name: 'Drifters', abbr: 'DWD', colors: ['#c99459', '#3a2a1f'], conference: 'West', division: 'Mesa', budget: 'small', strength: 'Shooting' },
-  { city: 'Sol Vista', name: 'Scorchers', abbr: 'SVS', colors: ['#ff8c1a', '#4a1e6e'], conference: 'West', division: 'Mesa', budget: 'large', strength: 'Pace' },
-  { city: 'Canyon Ridge', name: 'Condors', abbr: 'CRC', colors: ['#8c3b1c', '#e8d5b0'], conference: 'West', division: 'Mesa', budget: 'mid', strength: 'Size' },
-  { city: 'Ember Flats', name: 'Coyotes', abbr: 'EFC', colors: ['#b04a1a', '#2b2b2b'], conference: 'West', division: 'Mesa', budget: 'small', strength: 'Defense' },
-  // West — Summit division
-  { city: 'Highpeak', name: 'Glaciers', abbr: 'HPA', colors: ['#dfe8f0', '#2b4d7a'], conference: 'West', division: 'Summit', budget: 'large', strength: 'Size' },
-  { city: 'Frostvale', name: 'Yetis', abbr: 'FVY', colors: ['#7fb7d8', '#ffffff'], conference: 'West', division: 'Summit', budget: 'small', strength: 'Rebounding' },
-  { city: 'Timberline', name: 'Lumberjacks', abbr: 'TLJ', colors: ['#3c6e2b', '#d03a2a'], conference: 'West', division: 'Summit', budget: 'mid', strength: 'Depth' },
-  { city: 'Silver Crest', name: 'Stallions', abbr: 'SCS', colors: ['#9aa3ad', '#1f1f3a'], conference: 'West', division: 'Summit', budget: 'large', strength: 'Guards' },
-  { city: 'Pinecrest', name: 'Owls', abbr: 'PCO', colors: ['#5a4632', '#f2c879'], conference: 'West', division: 'Summit', budget: 'mid', strength: 'Passing' },
-  // West — Coast division
-  { city: 'Bay Marisol', name: 'Waves', abbr: 'BMW', colors: ['#0a74c9', '#ffd447'], conference: 'West', division: 'Coast', budget: 'large', strength: 'Shooting' },
-  { city: 'Seacliff', name: 'Sandpipers', abbr: 'SCP', colors: ['#1d3c5c', '#e3a85b'], conference: 'West', division: 'Coast', budget: 'mid', strength: 'Defense' },
-  { city: 'Neon Bay', name: 'Glow', abbr: 'NBG', colors: ['#e5267f', '#2bd9c4'], conference: 'West', division: 'Coast', budget: 'large', strength: 'Pace' },
-  { city: 'Coral Springs', name: 'Mantas', abbr: 'CSM', colors: ['#ff6f61', '#123c46'], conference: 'West', division: 'Coast', budget: 'small', strength: 'Athletes' },
-  { city: 'Fogport', name: 'Harpooners', abbr: 'FPM', colors: ['#2f4f4f', '#d9c27a'], conference: 'West', division: 'Coast', budget: 'mid', strength: 'Passing' },
+  // East — Atlantic division
+  { city: 'New York', name: '', abbr: 'NYC', colors: ['#006bb6', '#f58426'], conference: 'East', division: 'Atlantic', budget: 'large', strength: 'Guards' },
+  { city: 'Boston', name: '', abbr: 'BOS', colors: ['#007a33', '#ffffff'], conference: 'East', division: 'Atlantic', budget: 'large', strength: 'Shooting' },
+  { city: 'Brooklyn', name: '', abbr: 'BKN', colors: ['#000000', '#ffffff'], conference: 'East', division: 'Atlantic', budget: 'large', strength: 'Athletes' },
+  { city: 'Philadelphia', name: '', abbr: 'PHI', colors: ['#006bb6', '#ed174c'], conference: 'East', division: 'Atlantic', budget: 'mid', strength: 'Size' },
+  { city: 'Toronto', name: '', abbr: 'TOR', colors: ['#ce1141', '#000000'], conference: 'East', division: 'Atlantic', budget: 'mid', strength: 'Depth' },
+  // East — Central division
+  { city: 'Chicago', name: '', abbr: 'CHI', colors: ['#ce1141', '#000000'], conference: 'East', division: 'Central', budget: 'large', strength: 'Guards' },
+  { city: 'Cleveland', name: '', abbr: 'CLE', colors: ['#860038', '#fdbb30'], conference: 'East', division: 'Central', budget: 'mid', strength: 'Rebounding' },
+  { city: 'Detroit', name: '', abbr: 'DET', colors: ['#c8102e', '#1d42ba'], conference: 'East', division: 'Central', budget: 'mid', strength: 'Defense' },
+  { city: 'Indiana', name: '', abbr: 'IND', colors: ['#002d62', '#fdbb30'], conference: 'East', division: 'Central', budget: 'small', strength: 'Pace' },
+  { city: 'Milwaukee', name: '', abbr: 'MIL', colors: ['#00471b', '#eee1c6'], conference: 'East', division: 'Central', budget: 'small', strength: 'Size' },
+  // East — Southeast division
+  { city: 'Atlanta', name: '', abbr: 'ATL', colors: ['#e03a3e', '#c1d32f'], conference: 'East', division: 'Southeast', budget: 'mid', strength: 'Shooting' },
+  { city: 'Charlotte', name: '', abbr: 'CHA', colors: ['#1d1160', '#00788c'], conference: 'East', division: 'Southeast', budget: 'small', strength: 'Athletes' },
+  { city: 'Miami', name: '', abbr: 'MIA', colors: ['#98002e', '#f9a01b'], conference: 'East', division: 'Southeast', budget: 'large', strength: 'Defense' },
+  { city: 'Orlando', name: '', abbr: 'ORL', colors: ['#0077c0', '#c4ced4'], conference: 'East', division: 'Southeast', budget: 'mid', strength: 'Size' },
+  { city: 'Washington', name: '', abbr: 'WAS', colors: ['#002b5c', '#e31837'], conference: 'East', division: 'Southeast', budget: 'mid', strength: 'Passing' },
+  // West — Northwest division
+  { city: 'Denver', name: '', abbr: 'DEN', colors: ['#0e2240', '#fec524'], conference: 'West', division: 'Northwest', budget: 'mid', strength: 'Passing' },
+  { city: 'Minnesota', name: '', abbr: 'MIN', colors: ['#0c2340', '#78be20'], conference: 'West', division: 'Northwest', budget: 'mid', strength: 'Defense' },
+  { city: 'Oklahoma City', name: '', abbr: 'OKC', colors: ['#007ac1', '#ef3b24'], conference: 'West', division: 'Northwest', budget: 'small', strength: 'Athletes' },
+  { city: 'Portland', name: '', abbr: 'POR', colors: ['#e03a3e', '#000000'], conference: 'West', division: 'Northwest', budget: 'small', strength: 'Guards' },
+  { city: 'Utah', name: '', abbr: 'UTA', colors: ['#002b5c', '#f9a01b'], conference: 'West', division: 'Northwest', budget: 'small', strength: 'Rebounding' },
+  // West — Pacific division
+  { city: 'Golden State', name: '', abbr: 'GSC', colors: ['#1d428a', '#ffc72c'], conference: 'West', division: 'Pacific', budget: 'large', strength: 'Shooting' },
+  { city: 'LA', name: '', abbr: 'LAC', colors: ['#c8102e', '#1d428a'], conference: 'West', division: 'Pacific', budget: 'large', strength: 'Depth' },
+  { city: 'Los Angeles', name: '', abbr: 'LAL', colors: ['#552583', '#fdb927'], conference: 'West', division: 'Pacific', budget: 'large', strength: 'Athletes' },
+  { city: 'Phoenix', name: '', abbr: 'PHX', colors: ['#1d1160', '#e56020'], conference: 'West', division: 'Pacific', budget: 'mid', strength: 'Shooting' },
+  { city: 'Sacramento', name: '', abbr: 'SAC', colors: ['#5a2d81', '#63727a'], conference: 'West', division: 'Pacific', budget: 'small', strength: 'Pace' },
+  // West — Southwest division
+  { city: 'Dallas', name: '', abbr: 'DAL', colors: ['#00538c', '#b8c4ca'], conference: 'West', division: 'Southwest', budget: 'large', strength: 'Guards' },
+  { city: 'Houston', name: '', abbr: 'HOU', colors: ['#ce1141', '#000000'], conference: 'West', division: 'Southwest', budget: 'large', strength: 'Pace' },
+  { city: 'Memphis', name: '', abbr: 'MEM', colors: ['#5d76a9', '#12173f'], conference: 'West', division: 'Southwest', budget: 'small', strength: 'Defense' },
+  { city: 'New Orleans', name: '', abbr: 'NOL', colors: ['#0c2340', '#c8102e'], conference: 'West', division: 'Southwest', budget: 'small', strength: 'Size' },
+  { city: 'San Antonio', name: '', abbr: 'SAN', colors: ['#c4ced4', '#000000'], conference: 'West', division: 'Southwest', budget: 'mid', strength: 'Passing' },
 ];
 
 export const FIRST_NAMES = [

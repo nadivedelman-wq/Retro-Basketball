@@ -12,7 +12,7 @@ import {
   type CoachRole,
   type Team,
 } from '../core/types';
-import { FIRST_NAMES, LAST_NAMES, LEAGUE_NAME, TEAM_SEEDS } from './data';
+import { FIRST_NAMES, LAST_NAMES, LEAGUE_NAME, TEAM_SEEDS, teamName } from './data';
 import { MARKET, ROSTER, STARTING_USER_STARS } from './config';
 import { refreshMarket } from './market';
 import { DEFAULT_CAP, payroll } from './economy';
@@ -300,7 +300,7 @@ export function createLeague(opts: { seed: number; userTeamId: string; coachName
   const user = league.teams.find((t) => t.id === opts.userTeamId)!;
   user.credits = 10;
   for (const id of user.rosterIds) league.devBaseline[id] = stars(league.players[id]);
-  league.news.push({ day: 0, season: 1, kind: 'good', text: `${opts.coachName} named head coach of the ${user.city} ${user.name}.` });
+  league.news.push({ day: 0, season: 1, kind: 'good', text: `${opts.coachName} named head coach of the ${teamName(user)}.` });
   league.rngState = rng.state;
   return league;
 }

@@ -3,6 +3,7 @@
  * playoffs and the hand-off to the off-season. Live games and simulated games both
  * end up in applyGameResult, so standings, stats, injuries and XP update the same way.
  */
+import { teamName } from './data';
 import { Rng, clamp } from '../core/rng';
 import { emptyStats, type BoxLine, type BoxScore, type LeagueSave, type Player, type PlayerStats, type PlayoffSeries, type ScheduledGame, type Team } from '../core/types';
 import { COINS } from './config';
@@ -189,7 +190,7 @@ export function applyGameResult(league: LeagueSave, box: BoxScore, rng: Rng): bo
     const opp = home.id === user ? away : home;
     addNews(
       league,
-      `${userWon ? 'W' : 'L'} ${Math.max(box.homeScore, box.awayScore)}-${Math.min(box.homeScore, box.awayScore)} ${home.id === user ? 'vs' : 'at'} ${opp.city} ${opp.name}.`,
+      `${userWon ? 'W' : 'L'} ${Math.max(box.homeScore, box.awayScore)}-${Math.min(box.homeScore, box.awayScore)} ${home.id === user ? 'vs' : 'at'} ${teamName(opp)}.`,
       userWon ? 'good' : 'bad',
     );
   }
@@ -429,7 +430,7 @@ function applyPlayoffGame(league: LeagueSave, game: ScheduledGame, winnerId: str
     const user = league.userTeamId;
     if (w.id === user) earnAchievement(league, w, 'seriesWin', reward);
     if (w.id === user || l.id === user || s.conference === 'Finals') {
-      addNews(league, `${w.city} ${w.name} win the series ${Math.max(s.highWins, s.lowWins)}-${Math.min(s.highWins, s.lowWins)} over ${l.city}.`, w.id === user ? 'good' : l.id === user ? 'bad' : 'info');
+      addNews(league, `${teamName(w)} win the series ${Math.max(s.highWins, s.lowWins)}-${Math.min(s.highWins, s.lowWins)} over ${l.city}.`, w.id === user ? 'good' : l.id === user ? 'bad' : 'info');
     }
   }
 }
@@ -453,7 +454,7 @@ function finishPlayoffs(league: LeagueSave, finals: PlayoffSeries) {
     }
     t.fanSupport = clamp(t.fanSupport + 15, 0, 100);
   }
-  addNews(league, `${t.city} ${t.name} are ${league.settings.leagueName} champions!`, champ === league.userTeamId ? 'good' : 'info');
+  addNews(league, `${teamName(t)} are ${league.settings.leagueName} champions!`, champ === league.userTeamId ? 'good' : 'info');
   league.phase = 'offseason';
   league.offseasonStep = 'awards';
 }

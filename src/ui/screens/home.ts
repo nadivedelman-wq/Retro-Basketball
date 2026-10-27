@@ -1,3 +1,4 @@
+import { teamName } from '../../sim/data';
 import { sfx } from '../../audio/sfx';
 import type { LeagueSave } from '../../core/types';
 import { resolveEvent } from '../../sim/events';
@@ -98,7 +99,7 @@ export function homeScreen(app: App) {
         badge(t, 48),
         h('div', { class: 'x3' }, home ? 'vs' : 'at'),
         badge(opp, 48),
-        h('div', null, h('div', { class: 'x3' }, `${opp.city} ${opp.name}`), h('div', { class: 'muted' }, `${opp.wins}-${opp.losses} • Team `, starsEl(Math.round(teamRating(l, opp) * 2) / 2), ` • You `, starsEl(Math.round(teamRating(l, t) * 2) / 2))),
+        h('div', null, h('div', { class: 'x3' }, `${teamName(opp)}`), h('div', { class: 'muted' }, `${opp.wins}-${opp.losses} • Team `, starsEl(Math.round(teamRating(l, opp) * 2) / 2), ` • You `, starsEl(Math.round(teamRating(l, t) * 2) / 2))),
       ),
       series ? h('div', { class: 'gold', style: 'margin-top:8px' }, `Series: ${t.abbr} ${series.highSeedId === t.id ? series.highWins : series.lowWins} - ${series.highSeedId === t.id ? series.lowWins : series.highWins} ${opp.abbr} (first to ${winsNeeded(l)})`) : null,
       h(

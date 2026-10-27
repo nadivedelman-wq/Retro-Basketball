@@ -1,3 +1,4 @@
+import { teamName } from './data';
 import { hashString } from '../core/rng';
 import type { LeagueSave, Team } from '../core/types';
 import type { MatchConfig, MatchMode, MatchTeamInfo } from '../game/engine/types';
@@ -11,7 +12,7 @@ export function matchTeam(league: LeagueSave, team: Team): MatchTeamInfo {
   return {
     id: team.id,
     abbr: team.abbr,
-    name: `${team.city} ${team.name}`,
+    name: `${teamName(team)}`,
     colors: team.colors,
     players: players.map((p) => ({
       id: p.id,

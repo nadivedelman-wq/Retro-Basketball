@@ -11,7 +11,7 @@ import { migrate } from '../src/persist/save';
 import { payroll } from '../src/sim/economy';
 import type { LeagueSave } from '../src/core/types';
 
-const make = (seed = 11) => createLeague({ seed, userTeamId: 'hcg', coachName: 'T', settings: { ...DEFAULT_SETTINGS }, slot: 't' });
+const make = (seed = 11) => createLeague({ seed, userTeamId: 'nyc', coachName: 'T', settings: { ...DEFAULT_SETTINGS }, slot: 't' });
 
 function playUserGame(l: LeagueSave) {
   simToUserGame(l);

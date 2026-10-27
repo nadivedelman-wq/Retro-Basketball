@@ -47,7 +47,7 @@ Keys can be rebound in **Settings**. With a mouse, click a teammate to pass to h
 - Modes: franchise games, quick (exhibition) games, practice, and "simulate to the final buzzer".
 
 **Franchise**
-- 30 fictional clubs, two conferences, six divisions; 20/41/82-game seasons; 8 or 16 playoff teams; best-of-1/3/5/7 series.
+- 30 clubs based on the real NBA teams: city names only (no nicknames), team colours, real conferences and divisions; 20/41/82-game seasons; 8 or 16 playoff teams; best-of-1/3/5/7 series.
 - **Seven-man rosters**: five active players and up to two bench players. Choose who starts, who comes off the bench and who sits, with tap-to-swap on the Lineup screen. Stars are never forced in. Empty or unavailable spots are filled on game day by generated **0.5-star replacements** (`Reserve #90`): no contract, no cap hit, no development, never on the roster. Live and simulated games both use the chosen lineup.
 - **Weak start, long climb**: a new franchise gets seven cheap players rated 3.0, 2.5, 2.0, 2.0, 1.5, 1.0 and 0.5 stars. A few have real potential (up to 5 stars), most do not. Players grow toward their potential from games, training, coaches and the off-season; veterans decline.
 - **Salary cap**: a fictional hard cap of $100M. Salaries follow star bands ($1-3M at 0.5-1 star up to $22-26M at 5 stars), adjusted for age, potential, morale and form. Contracts run 1-4 seasons. Payroll, cap and available cap are shown on the roster, market and contracts screens. Over-cap moves are refused with the reason.

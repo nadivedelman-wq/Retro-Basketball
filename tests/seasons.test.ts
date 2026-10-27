@@ -8,7 +8,7 @@ import { stars } from '../src/sim/players';
 
 describe('long-term franchise loop', () => {
   it('plays four seasons with aging, retirements, drafts and free agency while staying legal', () => {
-    let l = createLeague({ seed: 2024, userTeamId: 'bay', coachName: 'T', settings: { ...DEFAULT_SETTINGS }, slot: 't' });
+    let l = createLeague({ seed: 2024, userTeamId: 'phi', coachName: 'T', settings: { ...DEFAULT_SETTINGS }, slot: 't' });
     const avgStars: number[] = [];
     for (let season = 1; season <= 4; season++) {
       let guard = 0;

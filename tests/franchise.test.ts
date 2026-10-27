@@ -8,7 +8,7 @@ import { advanceOffseason, finishResignings, runLottery, runCpuPicks, startNewSe
 import { buyMarketPlayer, releasePlayer, setLineup } from '../src/sim/transactions';
 import { validateLeague } from '../src/sim/transactions';
 
-const make = (seed = 42, extra = {}) => createLeague({ seed, userTeamId: 'hcg', coachName: 'Coach Test', settings: { ...DEFAULT_SETTINGS, ...extra }, slot: 'test' });
+const make = (seed = 42, extra = {}) => createLeague({ seed, userTeamId: 'nyc', coachName: 'Coach Test', settings: { ...DEFAULT_SETTINGS, ...extra }, slot: 'test' });
 
 describe('league creation', () => {
   it('creates 30 legal seven-man teams under the cap, with a weak user roster', () => {

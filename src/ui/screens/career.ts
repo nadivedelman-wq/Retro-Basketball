@@ -91,7 +91,7 @@ export function newCareerScreen(app: App) {
             'div',
             null,
             h('div', null, s.city),
-            h('div', { class: 'gold' }, s.name),
+            s.name ? h('div', { class: 'gold' }, s.name) : null,
             h('div', { class: 'tiny muted' }, `${s.conference} • ${s.strength} • ${s.budget === 'large' ? 'Big market' : s.budget === 'small' ? 'Small market' : 'Mid market'}`),
           ),
         );

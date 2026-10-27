@@ -15,7 +15,7 @@ import type { App } from '../app';
 import { h } from '../dom';
 import { badge, boxScoreView, coin, moraleEl, portrait, starsEl } from '../widgets';
 import { simNextUserGame } from './home';
-import { TEAM_SEEDS } from '../../sim/data';
+import { TEAM_SEEDS, teamName } from '../../sim/data';
 import { seg } from './career';
 
 function useTouch(app: App) {
@@ -41,7 +41,7 @@ export function pregameScreen(app: App) {
     h(
       'section',
       { class: 'panel', style: `border-top:6px solid ${t.colors[0]}` },
-      h('div', { class: 'row' }, badge(t, 48), h('div', null, h('div', { class: 'x3' }, `${t.city} ${t.name}`), h('div', { class: 'muted' }, `${t.wins}-${t.losses} • Team `, starsEl(Math.round(teamRating(l, t) * 2) / 2)))),
+      h('div', { class: 'row' }, badge(t, 48), h('div', null, h('div', { class: 'x3' }, `${teamName(t)}`), h('div', { class: 'muted' }, `${t.wins}-${t.losses} • Team `, starsEl(Math.round(teamRating(l, t) * 2) / 2)))),
       h('h3', { style: 'margin-top:10px' }, 'Game-day lineup'),
       (() => {
         const day = gameDayLineup(l, t);
@@ -522,7 +522,7 @@ export function quickScreen(app: App, params: Record<string, unknown>) {
       h(
         'select',
         { onchange: (e: Event) => set((e.target as HTMLSelectElement).value) },
-        league.teams.map((t) => h('option', { value: t.id, selected: t.id === cur }, `${t.city} ${t.name} (${(Math.round(teamRating(league, t) * 2) / 2).toFixed(1)}★)`)),
+        league.teams.map((t) => h('option', { value: t.id, selected: t.id === cur }, `${teamName(t)} (${(Math.round(teamRating(league, t) * 2) / 2).toFixed(1)}★)`)),
       ),
     );
   const start = () => {

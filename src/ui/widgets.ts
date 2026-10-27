@@ -1,3 +1,4 @@
+import { teamName } from '../sim/data';
 import { coinIcon, portraitUrl, teamBadge } from '../art/logo';
 import { RATING_KEYS, type BoxLine, type BoxScore, type LeagueSave, type Player, type Team } from '../core/types';
 import { capSpace, payroll } from '../sim/economy';
@@ -125,7 +126,7 @@ export function shell(app: App, active: Screen, ...content: HTMLElement[]) {
       'header',
       { class: 'topbar' },
       badge(t, 48, 'badge'),
-      h('div', null, h('div', { class: 'teamname' }, `${t.city} ${t.name}`), h('div', { class: 'muted' }, `Season ${l.season} \u2022 Coach ${l.coach.name}`)),
+      h('div', null, h('div', { class: 'teamname' }, `${teamName(t)}`), h('div', { class: 'muted' }, `Season ${l.season} \u2022 Coach ${l.coach.name}`)),
       h('div', { class: 'spacer' }),
       h('span', { class: 'chip' }, 'Record ', h('b', null, `${t.wins}-${t.losses}`)),
       h('span', { class: 'chip', title: 'Coach Coins' }, coin(), h('b', null, `${t.credits} CC`)),
@@ -270,9 +271,9 @@ export function boxScoreView(league: LeagueSave, box: BoxScore, onPlayer?: (id: 
         ),
       ),
     ),
-    h('h3', null, `${away.city} ${away.name}`),
+    h('h3', null, `${teamName(away)}`),
     boxTable(league, box.away, away, onPlayer),
-    h('h3', null, `${home.city} ${home.name}`),
+    h('h3', null, `${teamName(home)}`),
     boxTable(league, box.home, home, onPlayer),
     box.injuries.length ? h('div', { class: 'bad' }, `Injuries: ${box.injuries.map((i) => `${league.players[i.playerId]?.lastName} (${i.injury.type})`).join(', ')}`) : null,
   );

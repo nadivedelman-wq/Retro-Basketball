@@ -1,3 +1,4 @@
+import { teamName } from '../../sim/data';
 import type { LeagueSave, Player } from '../../core/types';
 import { standings, teamById, userTeam } from '../../sim/league';
 import { fullName } from '../../sim/players';
@@ -40,7 +41,7 @@ function scheduleView(app: App, l: LeagueSave) {
             'tr',
             { class: g.played ? 'click' : '', onclick: g.played ? () => openBox(app, g.id) : undefined },
             h('td', null, g.playoff ? `PO R${g.playoff.round} G${g.playoff.gameNumber}` : String(g.day + 1)),
-            h('td', null, badge(opp, 20), ` ${home ? 'vs' : '@'} ${opp.city} ${opp.name}`),
+            h('td', null, badge(opp, 20), ` ${home ? 'vs' : '@'} ${teamName(opp)}`),
             h('td', { class: g.played ? (won ? 'good' : 'bad') : 'muted' }, g.played ? `${won ? 'W' : 'L'} ${my}-${their}` : '-'),
             h('td', { class: 'tiny muted' }, g.played && l.boxScores[g.id]?.played ? 'played live' : g.played ? 'simulated' : ''),
           );
@@ -182,7 +183,7 @@ function teamStatsView(l: LeagueSave) {
             h(
               'tr',
               { class: r.t.id === l.userTeamId ? 'me' : '' },
-              h('td', null, badge(r.t, 20), ` ${r.t.city} ${r.t.name}`),
+              h('td', null, badge(r.t, 20), ` ${teamName(r.t)}`),
               h('td', { class: 'num' }, String(r.g)),
               h('td', { class: 'num' }, r.ppg.toFixed(1)),
               h('td', { class: 'num' }, r.opp.toFixed(1)),
@@ -217,7 +218,7 @@ export function leagueScreen(app: App, params: Record<string, unknown>) {
 export function historyScreen(app: App) {
   const l = app.league!;
   const name = (id?: string) => (id && l.players[id] ? fullName(l.players[id]) : '-');
-  const tname = (id?: string) => (id ? `${teamById(l, id).city} ${teamById(l, id).name}` : '-');
+  const tname = (id?: string) => (id ? `${teamName(teamById(l, id))}` : '-');
   const t = userTeam(l);
   const fr = Object.values(l.players).filter((p) => p.history.some((hs) => hs.teamId === t.id) || t.rosterIds.includes(p.id));
   const franchiseTotal = (p: Player, k: 'points' | 'rebounds' | 'assists') =>
