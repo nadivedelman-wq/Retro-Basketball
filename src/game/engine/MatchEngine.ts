@@ -165,6 +165,7 @@ export class MatchEngine {
           turnovers: 0,
           fouls: 0,
           plusMinus: 0,
+          touches: 0,
         });
       }
       const starters = t.starters.filter((id) => t.players.some((p) => p.id === id));
@@ -405,7 +406,8 @@ export class MatchEngine {
     this.clock -= used;
     for (const a of this.allOnCourt()) {
       this.box.get(a.id)!.seconds += used;
-      const drain = 0.00062 * (1.3 - a.r.stamina * 0.07) * (a.info.traits.includes('High Motor') ? 0.85 : 1);
+      const recovery = this.teams[a.side].staff.recovery ?? 0;
+      const drain = 0.00062 * (1.3 - a.r.stamina * 0.07) * (a.info.traits.includes('High Motor') ? 0.85 : 1) * (1 - recovery * 0.06);
       a.energy = clamp(a.energy - used * drain, 0.05, 1);
       // Injury risk scales with minutes, fatigue and the durability traits.
       const risk = 0.0000045 * (2 - a.energy) * injuryTraitFactor(a.info.traits);
@@ -414,7 +416,7 @@ export class MatchEngine {
         this.pendingInjury.push(a);
       }
     }
-    for (const a of this.actors) if (!a.onCourt) a.energy = clamp(a.energy + used * 0.0016, 0, a.info.startEnergy);
+    for (const a of this.actors) if (!a.onCourt) a.energy = clamp(a.energy + used * 0.0016 * (1 + (this.teams[a.side].staff.recovery ?? 0) * 0.15), 0, a.info.startEnergy);
 
     if (this.phase === 'live' && !this.shotClockOff && this.ball.state !== 'shot') {
       this.shotClock -= dt * this.shotScale;
@@ -650,7 +652,7 @@ export class MatchEngine {
             if (t && t.side === side && t.onCourt && t !== u) this.passTo(u, t);
           } else if (input.screen) this.callScreen(u);
         } else if (u.charging >= 0 && !input.shoot && u.chargeKind !== 'layup' && u.chargeKind !== 'dunk') {
-          this.releaseShot(u, releaseQuality(u.charging, u.r.shooting, u.chargeKind));
+          this.releaseShot(u, Math.min(1, releaseQuality(u.charging, u.r.shooting, u.chargeKind) + this.teams[u.side].staff.offense * 0.02));
         }
       } else if (this.phase === 'live' && u && !this.ball.holder) {
         // Loose ball or pass in flight on offense: control the intended receiver or nearest player.
@@ -881,6 +883,8 @@ export class MatchEngine {
       if (changed) line.defRebounds++;
       else line.offRebounds++;
     }
+    const touchLine = this.box.get(a.id)!;
+    touchLine.touches = (touchLine.touches ?? 0) + 1;
     if (b.pokedBy && b.pokedFrom && a.side === b.pokedBy.side) {
       this.box.get(b.pokedBy.id)!.steals++;
       this.box.get(b.pokedFrom.id)!.turnovers++;
@@ -1054,7 +1058,7 @@ export class MatchEngine {
   private cpuQuality(a: Actor) {
     const userTeam = this.cfg.userSide !== null && a.side === this.cfg.userSide;
     const mean = userTeam ? 0.74 : this.cfg.userSide === null ? 0.74 : this.diff.quality;
-    return clamp(this.rng.normal(mean, 0.16) + this.teams[a.side].staff.offense * 0.01, 0, 1);
+    return clamp(this.rng.normal(mean, 0.16) + this.teams[a.side].staff.offense * 0.02, 0, 1);
   }
 
   releaseShot(a: Actor, quality: number) {
@@ -1082,7 +1086,7 @@ export class MatchEngine {
     for (const o of this.onCourt((1 - a.side) as 0 | 1)) {
       const od = dist(a, o);
       if (od < contestDist) {
-        contestDist = od;
+        contestDist = od / (1 + this.teams[o.side].staff.defense * 0.04);
         closest = o;
         contestInFront = dist(o, rim) < d + 0.5;
         contestJumping = o.airborne;

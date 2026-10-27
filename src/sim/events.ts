@@ -1,6 +1,6 @@
 /**
  * Weekly franchise events for the user's team: short dilemmas with 2-3 options and
- * concrete consequences on morale, condition, credits, fans, chemistry or development.
+ * concrete consequences on morale, condition, CC, fans, chemistry or development.
  */
 import { Rng, clamp } from '../core/rng';
 import type { LeagueSave, PendingEvent, Player, Team } from '../core/types';
@@ -31,7 +31,7 @@ const TEMPLATES: Template[] = [
     options: [
       { label: 'Promise more minutes', effect: '+15 morale; moves to first off the bench', apply: (c) => { bump(c.player!, 'morale', 15); c.team.rotation = [c.player!.id, ...c.team.rotation.filter((id) => id !== c.player!.id)]; return `${c.player!.lastName} moves up the rotation.`; } },
       { label: 'Tell him to earn it', effect: '-10 morale; +5 front-office confidence', apply: (c) => { bump(c.player!, 'morale', -10); c.league.coach.confidence = clamp(c.league.coach.confidence + 5, 0, 100); return 'The front office likes your stance.'; } },
-      { label: 'Team meeting (4 credits)', effect: '+6 morale for everyone', apply: (c) => { if (c.team.credits < 4) return 'Not enough credits — the meeting never happened.'; c.team.credits -= 4; roster(c).forEach((p) => bump(p, 'morale', 6)); return 'The air is cleared.'; } },
+      { label: 'Team meeting (4 CC)', effect: '+6 morale for everyone', apply: (c) => { if (c.team.credits < 4) return 'Not enough CC — the meeting never happened.'; c.team.credits -= 4; roster(c).forEach((p) => bump(p, 'morale', 6)); return 'The air is cleared.'; } },
     ],
   },
   {
@@ -39,7 +39,7 @@ const TEMPLATES: Template[] = [
     title: 'Sponsor Offer',
     text: (c) => `A local mattress store wants its jingle played at every ${c.team.city} home timeout.`,
     options: [
-      { label: 'Take the money', effect: '+12 credits, -4 fan support', apply: (c) => { c.team.credits += 12; c.team.fanSupport = clamp(c.team.fanSupport - 4, 0, 100); return 'The jingle is catchy. Fans are not amused.'; } },
+      { label: 'Take the money', effect: '+4 CC, -4 fan support', apply: (c) => { c.team.credits += 4; c.team.fanSupport = clamp(c.team.fanSupport - 4, 0, 100); return 'The jingle is catchy. Fans are not amused.'; } },
       { label: 'Decline', effect: '+3 fan support', apply: (c) => { c.team.fanSupport = clamp(c.team.fanSupport + 3, 0, 100); return 'Fans appreciate the quiet timeouts.'; } },
     ],
   },
@@ -57,7 +57,7 @@ const TEMPLATES: Template[] = [
     title: 'Owner Wants Buzz',
     text: () => 'The owner wants a splashy fan promotion: free jerseys for the next home game.',
     options: [
-      { label: 'Fund it (6 credits)', effect: '+8 fan support, +4 confidence', apply: (c) => { if (c.team.credits < 6) { c.league.coach.confidence = clamp(c.league.coach.confidence - 4, 0, 100); return 'You could not afford it. The owner noticed.'; } c.team.credits -= 6; c.team.fanSupport = clamp(c.team.fanSupport + 8, 0, 100); c.league.coach.confidence = clamp(c.league.coach.confidence + 4, 0, 100); return 'Jerseys everywhere!'; } },
+      { label: 'Fund it (6 CC)', effect: '+8 fan support, +4 confidence', apply: (c) => { if (c.team.credits < 6) { c.league.coach.confidence = clamp(c.league.coach.confidence - 4, 0, 100); return 'You could not afford it. The owner noticed.'; } c.team.credits -= 6; c.team.fanSupport = clamp(c.team.fanSupport + 8, 0, 100); c.league.coach.confidence = clamp(c.league.coach.confidence + 4, 0, 100); return 'Jerseys everywhere!'; } },
       { label: 'Push back', effect: '-6 front-office confidence', apply: (c) => { c.league.coach.confidence = clamp(c.league.coach.confidence - 6, 0, 100); return 'The owner is unhappy.'; } },
     ],
   },
@@ -108,7 +108,7 @@ const TEMPLATES: Template[] = [
     title: 'Shot Doctor',
     text: () => 'A shooting consultant offers a one-week clinic.',
     options: [
-      { label: 'Hire (8 credits)', effect: '+40 XP to your three best shooters', apply: (c) => { if (c.team.credits < 8) return 'Not enough credits.'; c.team.credits -= 8; roster(c).sort((a, b) => b.ratings.shooting - a.ratings.shooting).slice(0, 3).forEach((p) => (p.xp += 40)); return 'Form looks smoother already.'; } },
+      { label: 'Hire (8 CC)', effect: '+40 XP to your three best shooters', apply: (c) => { if (c.team.credits < 8) return 'Not enough CC.'; c.team.credits -= 8; roster(c).sort((a, b) => b.ratings.shooting - a.ratings.shooting).slice(0, 3).forEach((p) => (p.xp += 40)); return 'Form looks smoother already.'; } },
       { label: 'No thanks', effect: 'Nothing happens', apply: () => 'You trust your staff.' },
     ],
   },
@@ -127,12 +127,16 @@ const TEMPLATES: Template[] = [
   },
 ];
 
+const NEGATIVE_EVENTS = new Set(['minutes', 'curfew', 'media', 'extension']);
+
 export function maybeTriggerEvent(league: LeagueSave, rng: Rng) {
   if (league.pendingEvent || league.phase !== 'regular') return;
   if (league.day < 2 || !rng.chance(0.3)) return;
   const team = userTeam(league);
   for (let tries = 0; tries < 6; tries++) {
     const t = rng.pick(TEMPLATES);
+    // Fan engagement keeps the locker room calmer: fewer negative morale events.
+    if (NEGATIVE_EVENTS.has(t.id) && rng.chance(team.facilities.fans * 0.22)) continue;
     const ctx: Ctx = { league, team };
     if (t.pick) {
       ctx.player = t.pick(ctx, rng);

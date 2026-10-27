@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GLYPHS, GLYPH_H } from '../../art/font';
 import { PixelBuffer, hexToRgba } from '../../art/pixels';
+import { hex } from '../../ui/palette';
 
 export const FONT = 'hardwood';
 
@@ -55,7 +56,7 @@ export function registerBitmapFont(scene: Phaser.Scene) {
 export class PixText {
   readonly main: Phaser.GameObjects.BitmapText;
   readonly shadow: Phaser.GameObjects.BitmapText;
-  constructor(scene: Phaser.Scene, x: number, y: number, text: string, color = 0xffffff, scale = 1, shadowColor = 0x140f1c) {
+  constructor(scene: Phaser.Scene, x: number, y: number, text: string, color = 0xffffff, scale = 1, shadowColor = hex('navyDeep')) {
     this.shadow = scene.add.bitmapText(x + scale, y + scale, FONT, text).setTint(shadowColor).setScale(scale);
     this.main = scene.add.bitmapText(x, y, FONT, text).setTint(color).setScale(scale);
   }

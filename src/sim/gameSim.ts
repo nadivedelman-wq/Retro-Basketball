@@ -8,7 +8,8 @@ import { injuryTraitFactor, rollInjury } from '../core/injuries';
 import { Rng, clamp } from '../core/rng';
 import type { BoxLine, BoxScore, LeagueSave, Player, ScheduledGame, Team } from '../core/types';
 import { makeProbability, type ShotKind } from '../game/engine/shot';
-import { gameRatings, fullName } from './players';
+import { ROSTER } from './config';
+import { fullName, gameRatings, makeReplacement } from './players';
 
 /** Possessions per team in a game, matched to what live games produce at the chosen quarter length. */
 export function basePossessions(quarterMinutes: number) {
@@ -26,7 +27,8 @@ type SimPlayer = {
 
 type Side = { team: Team; players: SimPlayer[]; active: SimPlayer[]; teamFouls: number };
 
-const DEFAULT_MINUTES = [34, 34, 33, 32, 30, 22, 18, 14, 10, 8, 5, 0, 0, 0, 0];
+/** Planned minutes for the five starters and two reserves (sums to 240). */
+const DEFAULT_MINUTES = [37, 37, 36, 36, 34, 30, 30];
 
 export function newLine(p: Player, starter: boolean): BoxLine {
   return {
@@ -49,36 +51,51 @@ export function newLine(p: Player, starter: boolean): BoxLine {
     turnovers: 0,
     fouls: 0,
     plusMinus: 0,
+    touches: 0,
   };
 }
 
-/** Rotation order: starters, then bench priority, then anyone else healthy. */
-export function rotationOrder(league: LeagueSave, team: Team): Player[] {
-  const ids = [...team.starters, ...team.rotation, ...team.rosterIds].filter((id, i, a) => a.indexOf(id) === i && team.rosterIds.includes(id));
-  return ids.map((id) => league.players[id]).filter((p) => p && !p.injury);
+export type GameDay = { players: Player[]; starters: string[]; bench: string[]; replacements: Player[] };
+
+/**
+ * Who dresses on game day: the five chosen starters and up to two reserves. Empty or unavailable
+ * spots get 0.5-star replacements (and the bench is topped up to two so fouls and fatigue can be
+ * covered). Players who sit, or are injured, do not play. Stars are never forced into the lineup.
+ */
+export function gameDayLineup(league: LeagueSave, team: Team): GameDay {
+  const ok = (id: string) => !!id && team.rosterIds.includes(id) && !!league.players[id] && !league.players[id].injury;
+  const used = new Set(team.rosterIds.map((id) => league.players[id]?.jerseyNumber));
+  const replacements: Player[] = [];
+  const rep = (slot: number) => {
+    let num = 90 + replacements.length;
+    while (used.has(num)) num++;
+    used.add(num);
+    const r = makeReplacement(team.id, slot, num);
+    replacements.push(r);
+    return r.id;
+  };
+  const starters = Array.from({ length: ROSTER.active }, (_, i) => (ok(team.starters[i]) ? team.starters[i] : rep(i)));
+  const bench = team.rotation.filter((id, i, a) => ok(id) && a.indexOf(id) === i && !starters.includes(id)).slice(0, ROSTER.bench);
+  while (bench.length < ROSTER.bench) bench.push(rep(5 + bench.length));
+  const byId = (id: string) => league.players[id] ?? replacements.find((r) => r.id === id)!;
+  return { players: [...starters, ...bench].map(byId), starters, bench, replacements };
 }
 
-/** Minutes per player (sums to 240): the coach's plan if set, otherwise a standard rotation shaped by stamina and condition. */
-export function planMinutes(league: LeagueSave, team: Team): Map<string, number> {
-  const order = rotationOrder(league, team);
+/** Minutes per dressed player (sums to 240): starters play most, shaped by stamina and condition. */
+export function planMinutes(day: GameDay): Map<string, number> {
   const out = new Map<string, number>();
-  let total = 0;
-  order.forEach((p, i) => {
-    const planned = team.minutesPlan[p.id];
-    let m = planned !== undefined ? planned : DEFAULT_MINUTES[i] ?? 0;
-    if (planned === undefined) m *= 0.85 + p.ratings.stamina * 0.03;
+  day.players.forEach((p, i) => {
+    let m = DEFAULT_MINUTES[i] ?? 0;
+    m *= 0.85 + p.ratings.stamina * 0.03;
     m *= 0.7 + 0.3 * (p.condition / 100);
-    m = clamp(m, 0, 42);
-    out.set(p.id, m);
-    total += m;
+    out.set(p.id, clamp(m, 0, 44));
   });
-  if (total <= 0) return out;
-  // Normalise to 240, respecting the 42-minute ceiling.
   for (let iter = 0; iter < 4; iter++) {
     let sum = 0;
     for (const v of out.values()) sum += v;
+    if (sum <= 0) break;
     const f = 240 / sum;
-    for (const [k, v] of out) out.set(k, clamp(v * f, 0, 44));
+    for (const [k, v] of out) out.set(k, clamp(v * f, 0, 46));
   }
   return out;
 }
@@ -92,20 +109,24 @@ function usageOf(p: Player) {
 }
 
 function prepSide(league: LeagueSave, team: Team): Side {
-  const mins = planMinutes(league, team);
-  const starters = new Set(team.starters);
-  const players: SimPlayer[] = team.rosterIds
-    .map((id) => league.players[id])
-    .filter(Boolean)
-    .map((p) => ({
-      p,
-      r: gameRatings(p),
-      line: newLine(p, starters.has(p.id) && !p.injury),
-      minutes: p.injury ? 0 : mins.get(p.id) ?? 0,
-      usage: usageOf(p),
-      energy: 0.55 + 0.45 * (p.condition / 100),
-    }));
+  const day = gameDayLineup(league, team);
+  const mins = planMinutes(day);
+  const starters = new Set(day.starters);
+  const dressed = new Set(day.players.map((p) => p.id));
+  const sitting = team.rosterIds.map((id) => league.players[id]).filter((p) => p && !dressed.has(p.id));
+  const players: SimPlayer[] = [...day.players, ...sitting].map((p) => ({
+    p,
+    r: gameRatings(p),
+    line: newLine(p, starters.has(p.id)),
+    minutes: mins.get(p.id) ?? 0,
+    usage: usageOf(p),
+    energy: 0.55 + 0.45 * (p.condition / 100),
+  }));
   return { team, players, active: players.filter((s) => s.minutes > 0), teamFouls: 0 };
+}
+
+function touch(s: SimPlayer) {
+  s.line.touches = (s.line.touches ?? 0) + 1;
 }
 
 function pickBy(rng: Rng, list: SimPlayer[], w: (s: SimPlayer) => number) {
@@ -206,6 +227,8 @@ function possession(o: Side, d: Side, home: boolean, rng: Rng, league: LeagueSav
   const dt = d.team.tactics;
   const dDef = avg(d.active, (s) => s.r.defense + (s.p.traits.includes('Defensive Anchor') ? 0.7 : 0)) + d.team.staff.defense * 0.12;
   const oPass = avg(o.active, (s) => s.r.passing + (s.p.traits.includes('Floor General') ? 0.6 : 0));
+  const handler = pickBy(rng, o.active, (s) => s.usage * 0.02 + s.r.dribbling * s.r.passing);
+  touch(handler);
   // Turnovers
   const toP = clamp(0.1 + (dDef - 5.5) * 0.012 + (dt.defAggression - 3) * 0.01 - (oPass - 5.5) * 0.012 + (ot.pace - 3) * 0.004, 0.06, 0.22);
   if (rng.chance(toP)) {
@@ -227,6 +250,7 @@ function possession(o: Side, d: Side, home: boolean, rng: Rng, league: LeagueSav
   let points = 0;
   for (let attempt = 0; attempt < 4; attempt++) {
     const shooter = pickBy(rng, o.active, (s) => s.usage);
+    if (shooter !== handler) touch(shooter);
     const r = shooter.r;
     const big = shooter.p.position === 'C' || shooter.p.position === 'PF';
     const wRim = r.finishing * 1.1 + r.athleticism * 0.5 + (big ? ot.postUps * 0.8 : 0);
@@ -308,10 +332,14 @@ function offRebound(o: Side, d: Side, rng: Rng): boolean {
   const p = clamp(0.24 + (oReb - dReb) * 0.025 + (o.team.tactics.rebounding - 3) * 0.02 - (d.team.tactics.rebounding - 3) * 0.015, 0.1, 0.4);
   const big = (s: SimPlayer) => (s.p.position === 'C' ? 1.6 : s.p.position === 'PF' ? 1.3 : 1);
   if (rng.chance(p)) {
-    pickBy(rng, o.active, (s) => s.r.rebounding * s.r.rebounding * big(s)).line.offRebounds++;
+    const reb = pickBy(rng, o.active, (s) => s.r.rebounding * s.r.rebounding * big(s));
+    reb.line.offRebounds++;
+    touch(reb);
     return true;
   }
-  pickBy(rng, d.active, (s) => s.r.rebounding * s.r.rebounding * big(s)).line.defRebounds++;
+  const dreb = pickBy(rng, d.active, (s) => s.r.rebounding * s.r.rebounding * big(s));
+  dreb.line.defRebounds++;
+  touch(dreb);
   return false;
 }
 

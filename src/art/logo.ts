@@ -69,3 +69,25 @@ export function portraitUrl(spec: SpriteSpec, size = 16): string {
   portraitCache.set(key, url);
   return url;
 }
+
+let coinUrl = '';
+
+/** Pixel Coach Coin icon (16x16). */
+export function coinIcon(): string {
+  if (coinUrl) return coinUrl;
+  const b = new PixelBuffer(16, 16);
+  const rim = hexToRgba('#B07D00');
+  const face = hexToRgba('#F5B700');
+  const shine = hexToRgba('#FFE680');
+  for (let y = 0; y < 16; y++)
+    for (let x = 0; x < 16; x++) {
+      const d = Math.hypot(x - 7.5, y - 7.5);
+      if (d <= 7.5) b.set(x, y, d > 6.2 ? rim : face);
+    }
+  b.rect(4, 3, 2, 1, shine);
+  b.rect(3, 4, 1, 2, shine);
+  drawText(b, 'C', 6, 4, rim);
+  b.outline(0, 0, 16, 16, hexToRgba('#0B1C36'));
+  coinUrl = b.toCanvas().toDataURL();
+  return coinUrl;
+}

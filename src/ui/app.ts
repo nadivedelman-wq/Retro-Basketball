@@ -3,6 +3,7 @@ import type { LeagueSave } from '../core/types';
 import { loadAppSettings, saveAppSettings, saveLeague, type AppSettings } from '../persist/save';
 import { transact, type TxResult } from '../sim/transactions';
 import { clear, h } from './dom';
+import { applyPalette } from './palette';
 
 export type Screen =
   | 'title'
@@ -20,7 +21,8 @@ export type Screen =
   | 'game'
   | 'postgame'
   | 'offseason'
-  | 'quick';
+  | 'quick'
+  | 'market';
 
 export type ScreenFn = (app: App, params: Record<string, unknown>) => HTMLElement;
 
@@ -78,19 +80,9 @@ export class App {
     this.render();
   }
 
+  /** The UI uses the shared blue-and-yellow palette everywhere; team colours only appear on badges and jerseys. */
   applyTeamTheme() {
-    const l = this.league;
-    const root = document.documentElement;
-    if (!l) {
-      root.style.setProperty('--team', '#c8102e');
-      root.style.setProperty('--team2', '#f2f2f2');
-      return;
-    }
-    const t = l.teams.find((x) => x.id === l.userTeamId)!;
-    root.style.setProperty('--team', t.colors[0]);
-    root.style.setProperty('--team2', t.colors[1]);
-    const [r, g, b] = [1, 3, 5].map((i) => parseInt(t.colors[0].slice(i, i + 2), 16));
-    root.style.setProperty('--team-ink', (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? '#140f1c' : '#ffffff');
+    applyPalette();
   }
 
   async save() {

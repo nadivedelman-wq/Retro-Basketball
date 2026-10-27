@@ -8,6 +8,7 @@ import type { MatchEngine } from '../engine/MatchEngine';
 import type { EngineEvent } from '../engine/types';
 import type { InputController } from '../input';
 import { PixText, registerBitmapFont } from './bitmapFont';
+import { PALETTE, hex } from '../../ui/palette';
 import { VIEW_H, VIEW_W, WORLD_W, projX, projY } from './projection';
 
 export type MatchHooks = {
@@ -157,24 +158,24 @@ export class MatchScene extends Phaser.Scene {
   }
 
   private buildHudText() {
-    const T = (k: string, x: number, y: number, color = 0xffffff, scale = 1) => {
+    const T = (k: string, x: number, y: number, color = hex('ink'), scale = 1) => {
       const t = new PixText(this, x, y, '', color, scale).setScrollFactor(0).setDepth(1001);
       this.texts[k] = t;
       return t;
     };
     T('awayAbbr', 0, 3);
-    T('awayScore', 0, 3, 0xffe066);
+    T('awayScore', 0, 3, hex('yellow'));
     T('homeAbbr', 0, 3);
-    T('homeScore', 0, 3, 0xffe066);
+    T('homeScore', 0, 3, hex('yellow'));
     T('clock', 0, 3);
-    T('shot', 0, 3, 0xff6b4a);
-    T('awayInfo', 0, 13, 0xc8c0d8);
-    T('homeInfo', 0, 13, 0xc8c0d8);
-    T('msg', VIEW_W / 2, 52, 0xffffff, 2).setOrigin(0.5, 0);
-    T('msgSub', VIEW_W / 2, 70, 0xffe066).setOrigin(0.5, 0);
-    T('player', 6, 4, 0xffffff);
-    T('hint', VIEW_W - 6, VIEW_H - 10, 0xb8b0c8).setOrigin(1, 0);
-    T('practice', VIEW_W / 2, 24, 0xffe066).setOrigin(0.5, 0);
+    T('shot', 0, 3, hex('yellow'));
+    T('awayInfo', 0, 13, hex('skySoft'));
+    T('homeInfo', 0, 13, hex('skySoft'));
+    T('msg', VIEW_W / 2, 52, hex('ink'), 2).setOrigin(0.5, 0);
+    T('msgSub', VIEW_W / 2, 70, hex('yellow')).setOrigin(0.5, 0);
+    T('player', 6, 4, hex('ink'));
+    T('hint', VIEW_W - 6, VIEW_H - 10, hex('skySoft')).setOrigin(1, 0);
+    T('practice', VIEW_W / 2, 24, hex('yellow')).setOrigin(0.5, 0);
   }
 
   update(_time: number, deltaMs: number) {
@@ -270,7 +271,7 @@ export class MatchScene extends Phaser.Scene {
         case 'score': {
           const x = projX(ev.x, ev.z);
           const y = projY(ev.z, 11);
-          const t = new PixText(this, x, y, ev.label, ev.points >= 3 || ev.label === 'SLAM!' ? 0xffe066 : 0xffffff).setOrigin(0.5, 1).setDepth(950);
+          const t = new PixText(this, x, y, ev.label, ev.points >= 3 || ev.label === 'SLAM!' ? hex('yellow') : hex('ink')).setOrigin(0.5, 1).setDepth(950);
           this.floaters.push({ t, life: 1.1 });
           this.crowdHype = Math.max(this.crowdHype, ev.points >= 3 ? 2.2 : 1.4);
           if (ev.side === this.e.cfg.userSide && ev.label === 'SLAM!') this.spawnConfetti(8);
@@ -283,7 +284,7 @@ export class MatchScene extends Phaser.Scene {
   }
 
   private spawnConfetti(n: number) {
-    const colors = [this.e.teams[0].colors[0], this.e.teams[0].colors[1], '#ffe066', '#ffffff'].map(hexNum);
+    const colors = [this.e.teams[0].colors[0], this.e.teams[0].colors[1], PALETTE.gold, PALETTE.ink].map(hexNum);
     for (let i = 0; i < n * 3; i++) {
       this.confetti.push({
         x: this.cameras.main.scrollX + Math.random() * VIEW_W,
@@ -415,7 +416,7 @@ export class MatchScene extends Phaser.Scene {
     if (user && user.onCourt && userSide !== null && !e.over && !e.autopilot) {
       const ux = Math.round(projX(user.x, user.z));
       const uy = Math.round(projY(user.z, 0));
-      const col = 0xffe066;
+      const col = hex('yellow');
       g.fillStyle(col, 1);
       // Bracket marker under the controlled player
       g.fillRect(ux - 7, uy + 1, 3, 1);
@@ -434,7 +435,7 @@ export class MatchScene extends Phaser.Scene {
     if (pt && pt.onCourt && !e.autopilot && Math.floor(this.time.now / 180) % 3 !== 0) {
       const px = Math.round(projX(pt.x, pt.z));
       const py = Math.round(projY(pt.z, pt.h)) - this.spriteHeight(pt) - 4;
-      g.fillStyle(0x7ee0ff, 1);
+      g.fillStyle(hex('sky'), 1);
       g.fillRect(px - 1, py, 3, 1);
       g.fillRect(px, py + 1, 1, 1);
       g.fillRect(px - 2, py - 1, 5, 1);
@@ -468,18 +469,18 @@ export class MatchScene extends Phaser.Scene {
     const h = 22;
     const x0 = x + 9;
     const y0 = headY - 2;
-    g.fillStyle(0x140f1c, 1);
+    g.fillStyle(hex('navyDeep'), 1);
     g.fillRect(x0 - 1, y0 - 1, 5, h + 2);
-    g.fillStyle(0x3a3046, 1);
+    g.fillStyle(hex('navyMid'), 1);
     g.fillRect(x0, y0, 3, h);
     const w = meterWindow(a.r.shooting, a.chargeKind);
     const gy0 = y0 + Math.round((1 - (METER_TARGET + w)) * h);
     const gy1 = y0 + Math.round((1 - (METER_TARGET - w)) * h);
-    g.fillStyle(0x3ccf6e, 1);
+    g.fillStyle(hex('good'), 1);
     g.fillRect(x0, gy0, 3, Math.max(1, gy1 - gy0));
     const m = Math.min(1.05, a.charging);
     const fy = y0 + Math.round((1 - Math.min(1, m)) * h);
-    g.fillStyle(m > METER_TARGET + w ? 0xff5a3c : 0xffe066, 1);
+    g.fillStyle(m > METER_TARGET + w ? hex('bad') : hex('yellow'), 1);
     g.fillRect(x0 - 1, fy, 5, 1);
   }
 
@@ -491,13 +492,13 @@ export class MatchScene extends Phaser.Scene {
     // Scorebug
     const W = 236;
     const x0 = Math.round(VIEW_W / 2 - W / 2);
-    g.fillStyle(0x140f1c, 0.92);
+    g.fillStyle(hex('navyDeep'), 0.92);
     g.fillRect(x0, 1, W, 21);
     g.fillStyle(hexNum(this.uniforms[1][0]), 1);
     g.fillRect(x0 + 2, 3, 4, 11);
     g.fillStyle(hexNum(this.uniforms[0][0]), 1);
     g.fillRect(x0 + 126, 3, 4, 11);
-    g.fillStyle(0x2a2236, 1);
+    g.fillStyle(hex('royalLo'), 1);
     g.fillRect(x0 + 62, 3, 62, 11);
     g.fillRect(x0 + 186, 3, 48, 11);
     const fmt = (s: number) => {
@@ -515,7 +516,7 @@ export class MatchScene extends Phaser.Scene {
     T.clock.setText(practice ? 'PRACTICE' : `${q} ${fmt(e.clock)}`).setPosition(x0 + 93 - T.clock.width / 2, 5);
     const sc = Math.ceil(e.shotClock);
     T.shot.setText(practice ? '--' : e.shotClockOff ? '--' : String(Math.max(0, sc))).setPosition(x0 + 210 - T.shot.width / 2, 5);
-    T.shot.setTint(sc <= 5 ? 0xff3c2c : 0xff9a4a);
+    T.shot.setTint(sc <= 5 ? hex('bad') : hex('yellow'));
     const info = (side: 0 | 1) => {
       const fouls = e.teamFouls[side];
       const bonus = fouls >= 5 ? ' BONUS' : '';
@@ -525,7 +526,7 @@ export class MatchScene extends Phaser.Scene {
     T.homeInfo.setText(practice ? '' : info(0)).setPosition(x0 + 133, 14);
     // Possession arrow
     if (!e.over && !practice) {
-      g.fillStyle(0xffe066, 1);
+      g.fillStyle(hex('yellow'), 1);
       const ax = e.possession === 1 ? x0 + 60 : x0 + 184;
       g.fillRect(ax, 7, 1, 3);
       g.fillRect(ax + (e.possession === 1 ? 1 : -1), 8, 1, 1);
@@ -537,7 +538,7 @@ export class MatchScene extends Phaser.Scene {
     T.msgSub.setVisible(!!m?.sub).setText(m?.sub ?? '');
     if (m) {
       const w = Math.max(T.msg.width * 2, T.msgSub.width) + 16;
-      g.fillStyle(0x140f1c, 0.8);
+      g.fillStyle(hex('navyDeep'), 0.8);
       g.fillRect(Math.round(VIEW_W / 2 - w / 2), 48, Math.round(w), m.sub ? 34 : 22);
     }
 
@@ -545,11 +546,11 @@ export class MatchScene extends Phaser.Scene {
     const u = e.user;
     if (u && e.cfg.userSide !== null && !e.autopilot) {
       T.player.setVisible(true).setText(`#${u.info.number} ${u.info.name} ${u.info.position}`);
-      g.fillStyle(0x140f1c, 0.85);
+      g.fillStyle(hex('navyDeep'), 0.85);
       g.fillRect(2, 1, Math.max(56, T.player.width + 8), 18);
-      g.fillStyle(0x3a3046, 1);
+      g.fillStyle(hex('navyMid'), 1);
       g.fillRect(6, 13, 46, 3);
-      g.fillStyle(u.energy > 0.6 ? 0x3ccf6e : u.energy > 0.35 ? 0xffc23c : 0xff5a3c, 1);
+      g.fillStyle(u.energy > 0.6 ? hex('good') : u.energy > 0.35 ? hex('warn') : hex('bad'), 1);
       g.fillRect(6, 13, Math.round(46 * u.energy), 3);
     } else T.player.setVisible(false);
 
@@ -594,7 +595,7 @@ export function makeGame(parent: HTMLElement, data: MatchSceneData): Phaser.Game
     height: VIEW_H,
     pixelArt: true,
     roundPixels: true,
-    backgroundColor: '#120e18',
+    backgroundColor: PALETTE.navyDeep,
     banner: false,
     audio: { noAudio: true },
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },

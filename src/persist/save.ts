@@ -5,7 +5,12 @@
  */
 import type { LeagueSave } from '../core/types';
 import { DEFAULT_BINDINGS, type KeyBindings } from '../game/input';
-import { SAVE_VERSION } from '../sim/league';
+import { Rng } from '../core/rng';
+import type { StaffMember } from '../core/types';
+import { ROSTER } from '../sim/config';
+import { SAVE_VERSION, repairRotation, sortRotation, staffCandidates } from '../sim/league';
+import { refreshMarket } from '../sim/market';
+import { marketSalary, stars } from '../sim/players';
 import { validateLeague } from '../sim/transactions';
 
 export const SLOTS = ['slot1', 'slot2', 'slot3'] as const;
@@ -29,7 +34,58 @@ const migrations: Record<number, Migration> = {
     if (!s.devBaseline) s.devBaseline = {};
     if (!s.staffPool) s.staffPool = [];
   },
+  3: (raw) => migrateToSevenManRosters(raw as unknown as LeagueSave),
 };
+
+/**
+ * v3 -> v4: 7-man rosters, star-band salaries, Coach Coins, 3-level upgrades, coach tiers and the
+ * player market. Nothing is deleted: players beyond the seven best on each team become free agents,
+ * contracts are re-priced to the new salary bands, and the change is explained in the news feed.
+ */
+function migrateToSevenManRosters(l: LeagueSave) {
+  const rng = new Rng((l.seed ^ 0x5eed) >>> 0);
+  type OldTeam = { facilities: Record<string, number>; staffMembers: { role: string; rating?: number; tier?: number }[] };
+  for (const t of l.teams) {
+    const old = t as unknown as OldTeam;
+    const f = old.facilities ?? {};
+    const lvl = (v: number | undefined) => Math.max(0, Math.min(3, (v ?? 1) - 1));
+    t.facilities = { training: lvl(f.training), recovery: lvl(f.medical ?? f.recovery), fans: lvl(f.arena ?? f.fans) };
+    t.staffMembers = (old.staffMembers ?? []).map((m) => ({
+      ...(m as unknown as StaffMember),
+      role: (m.role === 'scouting' ? 'development' : m.role) as StaffMember['role'],
+      tier: m.tier ?? Math.max(1, Math.min(3, Math.ceil((m.rating ?? 2) / 2))),
+    }));
+    t.staff = { offense: 0, defense: 0, development: 0 };
+    for (const m of t.staffMembers) t.staff[m.role] = m.tier;
+    const ranked = t.rosterIds.map((id) => l.players[id]).filter(Boolean).sort((a, b) => stars(b) - stars(a));
+    const keep = ranked.slice(0, ROSTER.max).map((p) => p.id);
+    for (const p of ranked.slice(ROSTER.max)) {
+      p.contract = { salaryMillions: p.contract.salaryMillions, yearsRemaining: 0 };
+      l.freeAgents.push(p.id);
+    }
+    t.rosterIds = keep;
+    for (const id of keep) {
+      const p = l.players[id];
+      p.contract = { salaryMillions: marketSalary(p), yearsRemaining: Math.max(1, Math.min(4, p.contract.yearsRemaining || 1)) };
+    }
+    t.minutesPlan = {};
+    if (t.id === l.userTeamId) {
+      t.starters = Array.from({ length: ROSTER.active }, (_, i) => t.starters[i] ?? '');
+      t.rotation = t.rotation.slice(0, ROSTER.bench);
+      repairRotation(l, t);
+    } else sortRotation(l, t);
+  }
+  l.staffPool = staffCandidates(l, rng);
+  l.achievements = l.achievements ?? [];
+  l.market = { offers: [], gamesUntilRefresh: 3 };
+  refreshMarket(l, rng);
+  l.news.unshift({
+    day: l.day,
+    season: l.season,
+    kind: 'event',
+    text: 'Save upgraded: rosters are now 7 players (extra players became free agents), contracts were re-priced to the new salary bands, credits are now Coach Coins, and the Player Market is open.',
+  });
+}
 
 export function migrate(raw: unknown): LeagueSave {
   if (!raw || typeof raw !== 'object') throw new Error('Save file is not a league.');

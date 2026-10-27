@@ -1,6 +1,8 @@
 import './ui/style.css';
 import { sfx } from './audio/sfx';
 import { App } from './ui/app';
+import { applyPalette } from './ui/palette';
+import { marketScreen } from './ui/screens/market';
 import { capScreen } from './ui/screens/cap';
 import { loadScreen, newCareerScreen } from './ui/screens/career';
 import { liveGameScreen, postgameScreen, pregameScreen, quickScreen } from './ui/screens/game';
@@ -24,6 +26,7 @@ async function loadFont() {
 }
 
 async function boot() {
+  applyPalette();
   await loadFont();
   const app = new App(document.getElementById('app')!);
   app.register('title', titleScreen);
@@ -42,6 +45,7 @@ async function boot() {
   app.register('postgame', postgameScreen);
   app.register('offseason', offseasonScreen);
   app.register('quick', quickScreen);
+  app.register('market', marketScreen);
   (window as unknown as { app: App }).app = app;
   const unlock = () => sfx.unlock();
   window.addEventListener('pointerdown', unlock, { once: true });

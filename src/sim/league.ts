@@ -9,15 +9,18 @@ import {
   type Position,
   type ScheduledGame,
   type StaffMember,
+  type CoachRole,
   type Team,
 } from '../core/types';
 import { FIRST_NAMES, LAST_NAMES, LEAGUE_NAME, TEAM_SEEDS } from './data';
+import { MARKET, ROSTER, STARTING_USER_STARS } from './config';
+import { refreshMarket } from './market';
 import { DEFAULT_CAP, payroll } from './economy';
 import { generatePlayer, stars } from './players';
 
-export const SAVE_VERSION = 3;
-export const ROSTER_MIN = 12;
-export const ROSTER_MAX = 15;
+export const SAVE_VERSION = 4;
+export const ROSTER_MIN = 0;
+export const ROSTER_MAX = ROSTER.max;
 
 export const DEFAULT_SETTINGS: LeagueSettings = {
   leagueName: LEAGUE_NAME,
@@ -33,42 +36,58 @@ export function newId(league: Pick<LeagueSave, 'nextId'>, prefix: string) {
   return `${prefix}${league.nextId++}`;
 }
 
-const ROSTER_TEMPLATE: Position[] = ['PG', 'SG', 'SF', 'PF', 'C', 'PG', 'SG', 'SF', 'PF', 'C', 'SG', 'SF', 'PF'];
+const ROSTER_TEMPLATE: Position[] = ['PG', 'SG', 'SF', 'PF', 'C', 'SG', 'PF'];
 
-/** Star targets for a 13-man roster: two core players, three solid starters, a bench. */
+/** Star targets for a CPU team's seven players (rounded to half stars, capped at 4 at league start). */
 function rosterTargets(rng: Rng, quality: number): number[] {
-  const t = [4 + rng.range(-0.5, 0.75), 3.5 + rng.range(-0.5, 0.5), 3 + rng.range(-0.5, 0.5), 2.75 + rng.range(-0.5, 0.5), 2.5 + rng.range(-0.5, 0.5)];
-  const bench = [2.25, 2, 2, 1.75, 1.5, 1.5, 1, 1];
-  return [...t, ...bench.map((b) => b + rng.range(-0.25, 0.25))].map((x) => Math.max(0.5, Math.min(5, x + quality)));
+  const base = [3.5, 3, 2.5, 2, 2, 1.5, 1];
+  return base.map((b) => Math.max(0.5, Math.min(4, Math.round((b + quality + rng.range(-0.5, 0.5)) * 2) / 2)));
 }
 
-function makeStaff(league: LeagueSave, rng: Rng, role: StaffMember['role'], rating: number): StaffMember {
-  const perks: Record<StaffMember['role'], string[]> = {
-    offense: ['Spacing guru', 'Pick-and-roll architect', 'Shooting coach', 'Transition specialist'],
-    defense: ['Rim-protection schemes', 'Perimeter lockdown', 'Rebounding drills', 'Switch-everything'],
-    scouting: ['International network', 'College circuit', 'Analytics department', 'Old-school eye test'],
-  };
-  return {
-    id: newId(league, 's'),
-    name: `${rng.pick(FIRST_NAMES)} ${rng.pick(LAST_NAMES)}`,
-    role,
-    rating,
-    salaryCredits: rating * 2,
-    perk: rng.pick(perks[role]),
-  };
+const COACH_PERKS: Record<CoachRole, string[]> = {
+  offense: ['Spacing guru', 'Pick-and-roll architect', 'Shooting coach', 'Transition specialist'],
+  defense: ['Rim-protection schemes', 'Perimeter lockdown', 'Rebounding drills', 'Switch-everything'],
+  development: ['Skills trainer', 'Film-room teacher', 'Strength coach', 'Youth whisperer'],
+};
+
+export function makeStaff(league: LeagueSave, rng: Rng, role: CoachRole, tier: number): StaffMember {
+  return { id: newId(league, 's'), name: `${rng.pick(FIRST_NAMES)} ${rng.pick(LAST_NAMES)}`, role, tier, perk: rng.pick(COACH_PERKS[role]) };
 }
 
+/** One Basic, one Strong and one Elite candidate for each coaching role. */
 export function staffCandidates(league: LeagueSave, rng: Rng): StaffMember[] {
   const out: StaffMember[] = [];
-  for (const role of ['offense', 'defense', 'scouting'] as const) {
-    for (let i = 0; i < 3; i++) out.push(makeStaff(league, rng, role, rng.int(1, 5)));
+  for (const role of ['offense', 'defense', 'development'] as const) {
+    for (const tier of [1, 2, 3]) out.push(makeStaff(league, rng, role, tier));
   }
   return out;
 }
 
+/** A new franchise's roster: seven cheap players, nobody above 3 stars, a few with real upside. */
+export function weakStartingRoster(league: LeagueSave, rng: Rng, team: Team) {
+  const used = new Set<number>();
+  const highPotential = new Set([rng.int(0, 2), rng.int(2, 4)]);
+  STARTING_USER_STARS.forEach((target, i) => {
+    const young = highPotential.has(i);
+    const p = generatePlayer(rng, {
+      id: newId(league, 'p'),
+      position: ROSTER_TEMPLATE[i],
+      target,
+      exactStars: true,
+      usedNumbers: used,
+      age: young ? rng.int(19, 22) : rng.int(22, 31),
+      potential: young ? Math.min(5, target + rng.int(4, 6) * 0.5) : Math.min(5, target + rng.int(0, 3) * 0.5),
+    });
+    p.contract = { salaryMillions: Math.min(9, p.contract.salaryMillions), yearsRemaining: rng.int(1, 3) };
+    league.players[p.id] = p;
+    team.rosterIds.push(p.id);
+  });
+  sortRotation(league, team);
+}
+
+/** Best healthy five by position (empty slots if fewer than five), then the next two as reserves. Used for CPU teams. */
 export function sortRotation(league: LeagueSave, team: Team) {
-  const players = team.rosterIds.map((id) => league.players[id]).filter(Boolean);
-  const healthy = players.filter((p) => !p.injury);
+  const healthy = team.rosterIds.map((id) => league.players[id]).filter((p) => p && !p.injury);
   const starters: string[] = [];
   for (const pos of POSITIONS) {
     const best = healthy
@@ -76,26 +95,40 @@ export function sortRotation(league: LeagueSave, team: Team) {
       .sort((a, b) => stars(b) - stars(a) + (b.position === pos ? 0.3 : 0) - (a.position === pos ? 0.3 : 0))[0];
     if (best) starters.push(best.id);
   }
-  for (const p of healthy.sort((a, b) => stars(b) - stars(a))) if (starters.length < 5 && !starters.includes(p.id)) starters.push(p.id);
-  team.starters = starters;
-  team.rotation = players
+  for (const p of healthy.slice().sort((a, b) => stars(b) - stars(a))) if (starters.length < ROSTER.active && !starters.includes(p.id)) starters.push(p.id);
+  team.rotation = healthy
     .filter((p) => !starters.includes(p.id))
-    .sort((a, b) => (a.injury ? 1 : 0) - (b.injury ? 1 : 0) || stars(b) - stars(a))
+    .sort((a, b) => stars(b) - stars(a))
+    .slice(0, ROSTER.bench)
     .map((p) => p.id);
+  while (starters.length < ROSTER.active) starters.push('');
+  team.starters = starters;
 }
 
-/** Keep the user's chosen starters where possible, only replacing injured or departed players. */
+/**
+ * Keep the user's lineup, dropping players who left or got hurt. A starter slot that loses its player
+ * is handed to the first healthy reserve; slots the user left empty on purpose stay empty
+ * (a 0.5-star replacement fills them on game day).
+ */
 export function repairRotation(league: LeagueSave, team: Team) {
-  const ok = (id: string) => team.rosterIds.includes(id) && !league.players[id]?.injury;
-  const starters = team.starters.filter(ok);
-  const rest = [...team.rotation, ...team.rosterIds].filter((id, i, arr) => arr.indexOf(id) === i && !starters.includes(id) && team.rosterIds.includes(id));
-  while (starters.length < 5) {
-    const next = rest.find((id) => ok(id) && !starters.includes(id));
-    if (!next) break;
-    starters.push(next);
+  const ok = (id: string) => !!id && team.rosterIds.includes(id) && !league.players[id]?.injury;
+  const starters = Array.from({ length: ROSTER.active }, (_, i) => team.starters[i] ?? '');
+  let reserves = team.rotation.filter((id, i, a) => ok(id) && a.indexOf(id) === i && !starters.includes(id));
+  for (let i = 0; i < starters.length; i++) {
+    if (!starters[i] || ok(starters[i])) continue;
+    starters[i] = reserves.shift() ?? '';
   }
   team.starters = starters;
-  team.rotation = rest.filter((id) => !starters.includes(id)).sort((a, b) => (league.players[a].injury ? 1 : 0) - (league.players[b].injury ? 1 : 0));
+  team.rotation = reserves.slice(0, ROSTER.bench);
+}
+
+/** Where a newly added player goes: an empty starter slot, then a reserve slot, otherwise he sits. */
+export function placeNewPlayer(team: Team, playerId: string) {
+  const slots = Array.from({ length: ROSTER.active }, (_, i) => team.starters[i] ?? '');
+  const empty = slots.indexOf('');
+  if (empty >= 0) slots[empty] = playerId;
+  else if (team.rotation.length < ROSTER.bench) team.rotation = [...team.rotation, playerId];
+  team.starters = slots;
 }
 
 export function buildSchedule(teams: Team[], games: number, rng: Rng, season: number): ScheduledGame[] {
@@ -146,10 +179,10 @@ export function buildSchedule(teams: Team[], games: number, rng: Rng, season: nu
 export function defaultObjectives(league: LeagueSave): Objective[] {
   const g = league.settings.seasonGames;
   return [
-    { id: 'wins', kind: 'wins', label: `Win ${Math.ceil(g * 0.5)} games`, target: Math.ceil(g * 0.5), reward: 15 },
-    { id: 'playoffs', kind: 'playoffs', label: 'Make the playoffs', target: 1, reward: 20 },
-    { id: 'develop', kind: 'develop', label: 'Raise a player 1/2 star', target: 1, reward: 10 },
-    { id: 'finance', kind: 'finance', label: 'Finish under the cap', target: 1, reward: 8 },
+    { id: 'wins', kind: 'wins', label: `Win ${Math.ceil(g * 0.5)} games`, target: Math.ceil(g * 0.5), reward: 3 },
+    { id: 'playoffs', kind: 'playoffs', label: 'Make the playoffs', target: 1, reward: 3 },
+    { id: 'develop', kind: 'develop', label: 'Raise a player 1/2 star', target: 1, reward: 2 },
+    { id: 'finance', kind: 'finance', label: 'Finish under the cap', target: 1, reward: 2 },
   ];
 }
 
@@ -183,6 +216,8 @@ export function createLeague(opts: { seed: number; userTeamId: string; coachName
     appliedGames: [],
     devBaseline: {},
     staffPool: [],
+    market: { offers: [], gamesUntilRefresh: MARKET.refreshEveryGames },
+    achievements: [],
   };
 
   for (const seed of TEAM_SEEDS) {
@@ -201,10 +236,10 @@ export function createLeague(opts: { seed: number; userTeamId: string; coachName
       minutesPlan: {},
       wins: 0,
       losses: 0,
-      credits: 25,
+      credits: 0,
       capMillions: DEFAULT_CAP,
-      facilities: { training: seed.budget === 'large' ? 2 : 1, medical: seed.budget === 'small' ? 1 : 2, arena: seed.budget === 'large' ? 2 : 1 },
-      staff: { offense: 0, defense: 0, scouting: 0 },
+      facilities: { training: seed.budget === 'large' ? 2 : 1, recovery: seed.budget === 'small' ? 0 : 1, fans: seed.budget === 'large' ? 2 : 1 },
+      staff: { offense: 0, defense: 0, development: 0 },
       staffMembers: [],
       tactics: tacticsFor(seed.strength, rng),
       strength: seed.strength,
@@ -222,15 +257,24 @@ export function createLeague(opts: { seed: number; userTeamId: string; coachName
       homeLosses: 0,
       banners: [],
     };
-    for (const role of ['offense', 'defense', 'scouting'] as const) {
-      const m = makeStaff(league, rng, role, rng.int(1, 3) + (seed.budget === 'large' ? 1 : 0));
-      team.staffMembers.push(m);
-      team.staff[role] = m.rating;
+    if (team.id === opts.userTeamId) {
+      // The user's franchise starts from the bottom: no facilities, no coaches, a weak roster.
+      team.facilities = { training: 0, recovery: 0, fans: 0 };
+      team.fanSupport = 45;
+      weakStartingRoster(league, rng, team);
+      league.teams.push(team);
+      continue;
+    }
+    for (const role of ['offense', 'defense', 'development'] as const) {
+      const tier = rng.int(0, seed.budget === 'large' ? 2 : 1);
+      if (!tier) continue;
+      team.staffMembers.push(makeStaff(league, rng, role, tier));
+      team.staff[role] = tier;
     }
     const used = new Set<number>();
     const targets = rosterTargets(rng, quality);
     ROSTER_TEMPLATE.forEach((pos, i) => {
-      const p = generatePlayer(rng, { id: newId(league, 'p'), position: pos, target: targets[i], usedNumbers: used, age: i < 2 ? rng.int(23, 31) : undefined });
+      const p = generatePlayer(rng, { id: newId(league, 'p'), position: pos, target: targets[i], exactStars: true, usedNumbers: used, age: i < 2 ? rng.int(23, 31) : undefined });
       league.players[p.id] = p;
       team.rosterIds.push(p.id);
     });
@@ -243,8 +287,8 @@ export function createLeague(opts: { seed: number; userTeamId: string; coachName
     t.rivals = league.teams.filter((o) => o.division === t.division && o.id !== t.id).slice(0, 2).map((o) => o.id);
   }
   for (let i = 0; i < 30; i++) {
-    const p = generatePlayer(rng, { id: newId(league, 'p'), target: rng.range(0.5, 2.5) });
-    p.contract = { salaryMillions: Math.max(1, Math.round(p.contract.salaryMillions * 0.8 * 10) / 10), yearsRemaining: 0 };
+    const p = generatePlayer(rng, { id: newId(league, 'p'), target: Math.round(rng.range(0.5, 2.5) * 2) / 2, exactStars: true });
+    p.contract = { salaryMillions: p.contract.salaryMillions, yearsRemaining: 0 };
     league.players[p.id] = p;
     league.freeAgents.push(p.id);
   }
@@ -252,8 +296,9 @@ export function createLeague(opts: { seed: number; userTeamId: string; coachName
   league.schedule = buildSchedule(league.teams, league.settings.seasonGames, rng, league.season);
   league.objectives = defaultObjectives(league);
   league.staffPool = staffCandidates(league, rng);
+  refreshMarket(league, rng);
   const user = league.teams.find((t) => t.id === opts.userTeamId)!;
-  user.credits = 30;
+  user.credits = 10;
   for (const id of user.rosterIds) league.devBaseline[id] = stars(league.players[id]);
   league.news.push({ day: 0, season: 1, kind: 'good', text: `${opts.coachName} named head coach of the ${user.city} ${user.name}.` });
   league.rngState = rng.state;

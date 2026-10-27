@@ -178,7 +178,7 @@ export function homeScreen(app: App) {
     h(
       'ul',
       { class: 'news' },
-      l.objectives.map((o) => h('li', { class: o.done ? 'good' : 'info' }, `${o.label} • +${o.reward} credits${o.done ? ' • DONE' : ''}`)),
+      l.objectives.map((o) => h('li', { class: o.done ? 'good' : 'info' }, `${o.label} • +${o.reward} CC${o.done ? ' • DONE' : ''}`)),
     ),
   );
 

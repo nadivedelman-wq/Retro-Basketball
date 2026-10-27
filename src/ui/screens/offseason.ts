@@ -5,18 +5,18 @@ import { teamById, userTeam } from '../../sim/league';
 import { advanceOffseason, currentPick, draftPlayer, finishDraft, finishResignings, prospectValue, runCpuPicks, runLottery, skipPick, startNewSeason } from '../../sim/offseason';
 import { fullName, stars } from '../../sim/players';
 import { withRng } from '../../sim/season';
-import { askingContract, letWalk, resignPlayer, scoutProspect } from '../../sim/transactions';
+import { SCOUT_COST, askingContract, letWalk, resignPlayer, scoutProspect } from '../../sim/transactions';
 import type { App } from '../app';
 import { fmtMoney, h } from '../dom';
-import { badge, capSummary, screenTitle, shell, starsEl } from '../widgets';
-import { freeAgentTable } from './cap';
+import { badge, capSummary, coin, confirmPurchase, screenTitle, shell, starsEl } from '../widgets';
+import { ROSTER } from '../../sim/config';
 import { bracketView } from './league';
 import { heightStr, openPlayer, rosterTable } from './roster';
 
 const STEPS = [
   ['resign', 'Re-sign'],
   ['draft', 'Draft'],
-  ['freeAgency', 'Free agency'],
+  ['freeAgency', 'Market & new season'],
 ] as const;
 
 function seasonSummary(l: LeagueSave) {
@@ -133,7 +133,7 @@ export function offseasonScreen(app: App) {
         'section',
         { class: 'panel' },
         h('h2', null, onClock ? `You're on the clock: pick ${pick!.round}-${pick!.pick}` : 'Draft complete'),
-        h('div', { class: 'row' }, h('span', { class: 'muted' }, `Your remaining picks: ${mine.map((o) => `${o.round}-${o.pick}`).join(', ') || 'none'}`), h('span', { class: 'spacer' }), h('span', { class: 'chip' }, 'Credits ', h('b', null, String(t.credits))), h('span', { class: 'chip' }, 'Roster ', h('b', null, `${t.rosterIds.length}/15`))),
+        h('div', { class: 'row' }, h('span', { class: 'muted' }, `Your remaining picks: ${mine.map((o) => `${o.round}-${o.pick}`).join(', ') || 'none'}`), h('span', { class: 'spacer' }), h('span', { class: 'chip' }, coin(), h('b', null, `${t.credits} CC`)), h('span', { class: 'chip' }, 'Roster ', h('b', null, `${t.rosterIds.length}/${ROSTER.max}`))),
         d.lottery.length ? h('div', { class: 'tiny muted', style: 'margin-top:6px' }, `Lottery: ${d.lottery.slice(0, 4).map((x) => `#${x.pick} ${teamById(l, x.teamId).abbr} (odds #${x.seed})`).join(' • ')}`) : null,
         onClock
           ? h(
@@ -147,7 +147,7 @@ export function offseasonScreen(app: App) {
       h(
         'section',
         { class: 'panel' },
-        h('h2', null, 'Big Board', h('span', { class: 'tiny muted' }, 'Potential is a scouting estimate. Scout for 3 credits to sharpen it.')),
+        h('h2', null, 'Big Board', h('span', { class: 'tiny muted' }, `Potential is a scouting estimate. Scout for ${SCOUT_COST} CC to sharpen it.`)),
         h(
           'div',
           { class: 'table-wrap' },
@@ -173,7 +173,7 @@ export function offseasonScreen(app: App) {
                   h(
                     'td',
                     null,
-                    h('div', { class: 'row', style: 'gap:4px;flex-wrap:nowrap' }, h('button', { class: 'btn small', disabled: p.scoutLevel >= 3 || t.credits < 3, onclick: () => app.commit(scoutProspect(app.league!, p.id)) }, 'Scout'), onClock ? h('button', { class: 'btn small primary', onclick: () => { if (app.mutate((dd) => { draftPlayer(dd, p.id); runCpuPicks(dd); })) { sfx.fanfare(); app.go('offseason'); } } }, 'Draft') : null),
+                    h('div', { class: 'row', style: 'gap:4px;flex-wrap:nowrap' }, h('button', { class: 'btn small', disabled: p.scoutLevel >= 3 || t.credits < SCOUT_COST, onclick: async () => { if (await confirmPurchase(app, `Scout ${fullName(p)}?`, ['A sharper estimate of his potential. Your Development Coach makes reports more accurate.'], SCOUT_COST, t.credits)) app.commit(scoutProspect(app.league!, p.id)); } }, `Scout ${SCOUT_COST} CC`), onClock ? h('button', { class: 'btn small primary', onclick: () => { if (app.mutate((dd) => { draftPlayer(dd, p.id); runCpuPicks(dd); })) { sfx.fanfare(); app.go('offseason'); } } }, 'Draft') : null),
                   ),
                 ),
               ),
@@ -208,10 +208,10 @@ export function offseasonScreen(app: App) {
         { class: 'panel' },
         h('h2', null, 'Free agency'),
         capSummary(l, t),
-        h('div', { class: 'row', style: 'margin-top:8px' }, h('span', { class: t.rosterIds.length < 12 ? 'bad' : 'good' }, `Roster ${t.rosterIds.length}/15 (need 12-15)`), h('span', { class: 'muted' }, ` • payroll ${fmtMoney(payroll(l, t))}`), h('span', { class: 'spacer' }), h('button', { class: 'btn big primary', onclick: () => { if (app.mutate((dd) => startNewSeason(dd))) { sfx.fanfare(); app.go('home'); } } }, `Start season ${l.season + 1} ▶`)),
-        h('div', { class: 'tiny muted' }, 'CPU teams sign their players when you start the season.'),
+        h('div', { class: 'row', style: 'margin-top:8px' }, h('span', { class: 'good' }, `Roster ${t.rosterIds.length}/${ROSTER.max}`), h('span', { class: 'muted' }, ` • payroll ${fmtMoney(payroll(l, t))}`), h('span', { class: 'spacer' }), h('button', { class: 'btn big primary', onclick: () => { if (app.mutate((dd) => startNewSeason(dd))) { sfx.fanfare(); app.go('home'); } } }, `Start season ${l.season + 1} ▶`)),
+        h('div', { class: 'tiny muted' }, 'CPU teams sign their free agents when you start the season. Empty lineup spots are filled by 0.5-star replacements.'),
       ),
-      h('section', { class: 'panel' }, h('h2', null, 'Available players'), freeAgentTable(app, 80)),
+      h('section', { class: 'panel' }, h('h2', null, 'Add talent'), h('p', null, `The Player Market has ${l.market.offers.length} 4-5 star players available for Coach Coins.`), h('button', { class: 'btn primary', onclick: () => app.go('market') }, 'Open the Market \u25b6')),
       h('section', { class: 'panel' }, h('h2', null, 'Your roster'), rosterTable(app, l, t.rosterIds.map((id) => l.players[id]))),
     );
   } else {

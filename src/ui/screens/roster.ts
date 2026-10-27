@@ -6,7 +6,8 @@ import { ARCHETYPES, TRAITS, fullName, overall, stars } from '../../sim/players'
 import { editPlayer, releasePlayer } from '../../sim/transactions';
 import type { App } from '../app';
 import { fmtMoney, h, pct, perGame } from '../dom';
-import { badge, meter, playerStatus, portrait, ratingBars, screenTitle, shell, starsEl, teamOfPlayer } from '../widgets';
+import { ROSTER } from '../../sim/config';
+import { badge, capStrip, meter, moraleEl, playerStatus, portrait, ratingBars, roleOf, roleTag, screenTitle, shell, starsEl, teamOfPlayer } from '../widgets';
 
 export const heightStr = (cm: number) => {
   const inches = Math.round(cm / 2.54);
@@ -54,7 +55,10 @@ export function openPlayer(app: App, playerId: string) {
         'div',
         { class: 'col' },
         h('h3', null, 'Condition & Morale'),
-        h('div', { class: 'row' }, h('span', { style: 'width:110px' }, 'Morale'), h('div', { class: 'spacer' }, meter(p.morale)), h('span', null, String(Math.round(p.morale)))),
+        h('div', null, h('span', { class: 'muted' }, 'Morale'), moraleEl(p)),
+        p.recent?.length
+          ? h('div', { class: 'tiny muted' }, `Last ${p.recent.length} games: ${p.recent.map((r) => (r.dressed ? `${Math.round(r.minutes)}m/${r.touches}t` : 'DNP')).join(' \u2022 ')}`)
+          : null,
         h('div', { class: 'row' }, h('span', { style: 'width:110px' }, 'Condition'), h('div', { class: 'spacer' }, meter(p.condition, 100, 'gold')), h('span', null, String(Math.round(p.condition)))),
         h('div', { class: 'row' }, h('span', { style: 'width:110px' }, 'Dev XP'), h('div', { class: 'spacer' }, meter(p.xp, 100, 'team')), h('span', null, `${Math.floor(p.xp)}/100`)),
         h('h3', { style: 'margin-top:8px' }, 'Traits'),
@@ -201,14 +205,55 @@ export function rosterTable(app: App, l: LeagueSave, players: Player[], opts: { 
   );
 }
 
+export function playerCard(app: App, l: LeagueSave, p: Player) {
+  const t = userTeam(l);
+  const top = (Object.entries(p.ratings) as [string, number][]).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  return h(
+    'button',
+    { class: 'pcard', onclick: () => openPlayer(app, p.id), 'aria-label': `${fullName(p)} profile` },
+    h(
+      'div',
+      { class: 'top' },
+      portrait(l, p),
+      h(
+        'div',
+        { style: 'flex:1;min-width:0' },
+        h('div', { class: 'name' }, `#${p.jerseyNumber} ${p.firstName[0]}. ${p.lastName}`),
+        h('div', { class: 'tiny muted' }, `${p.position} \u2022 ${p.archetype} \u2022 age ${p.age}`),
+        h('div', null, starsEl(stars(p)), h('span', { class: 'tiny muted' }, ` ${stars(p).toFixed(1)}`), h('span', { class: 'tiny muted' }, ` \u2022 pot ${p.scoutedPotential === null ? '?' : p.scoutedPotential.toFixed(1)}`)),
+      ),
+      roleTag(roleOf(t, p)),
+    ),
+    h('div', { class: 'tiny muted' }, `Top: ${top.map(([k, v]) => `${k} ${v}`).join(' \u2022 ')}`),
+    moraleEl(p),
+    h('div', { class: 'row tiny', style: 'gap:6px' }, h('span', null, `${fmtMoney(p.contract.salaryMillions)}/yr x ${p.contract.yearsRemaining}`), h('span', { class: 'spacer' }), playerStatus(p)),
+  );
+}
+
 export function rosterScreen(app: App) {
   const l = app.league!;
   const t = userTeam(l);
-  const players = t.rosterIds.map((id) => l.players[id]).sort((a, b) => Number(t.starters.includes(b.id)) - Number(t.starters.includes(a.id)) || stars(b) - stars(a));
+  const order = (p: Player) => ({ starter: 0, reserve: 1, sitting: 2, injured: 3 })[roleOf(t, p)];
+  const players = t.rosterIds.map((id) => l.players[id]).sort((a, b) => order(a) - order(b) || stars(b) - stars(a));
+  const open = ROSTER.max - players.length;
   return shell(
     app,
     'roster',
-    screenTitle('Roster', h('span', { class: 'muted' }, `${players.length}/15 players • starters in gold • click a player for his profile`)),
-    h('section', { class: 'panel' }, rosterTable(app, l, players)),
+    screenTitle('Roster', h('span', { class: 'muted' }, `${players.length}/${ROSTER.max} contracted \u2022 5 active + 2 bench`)),
+    capStrip(l, t),
+    h(
+      'div',
+      { class: 'cards' },
+      players.map((p) => playerCard(app, l, p)),
+      Array.from({ length: open }, () =>
+        h(
+          'button',
+          { class: 'pcard', style: 'align-items:center;justify-content:center;border-style:dashed', onclick: () => app.go('market') },
+          h('div', { class: 'muted' }, 'Open roster slot'),
+          h('div', { class: 'tiny muted' }, 'A 0.5-star replacement fills empty lineup spots. Sign a star in the Market.'),
+        ),
+      ),
+    ),
+    h('section', { class: 'panel', style: 'margin-top:14px' }, h('h2', null, 'Details'), rosterTable(app, l, players)),
   );
 }

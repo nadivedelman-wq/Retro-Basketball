@@ -6,8 +6,9 @@
 import { Rng, clamp } from '../core/rng';
 import { emptyStats, type DraftState, type LeagueSave, type Player, type RecordEntry, type SeasonAwards, type Team } from '../core/types';
 import { canSign, payroll, rookieSalary, round1, MIN_SALARY } from './economy';
-import { ROSTER_MAX, addNews, buildSchedule, defaultObjectives, newId, repairRotation, sortRotation, staffCandidates, standings, teamById, userTeam } from './league';
+import { ROSTER_MAX, addNews, buildSchedule, defaultObjectives, newId, placeNewPlayer, repairRotation, sortRotation, staffCandidates, standings, teamById, userTeam } from './league';
 import { ageOneYear, fullName, generatePlayer, marketSalary, stars } from './players';
+import { refreshMarket } from './market';
 import { withRng } from './season';
 import { askingContract, freeNumber } from './transactions';
 
@@ -146,7 +147,7 @@ export function runProgression(league: LeagueSave, rng: Rng) {
     for (const id of t.rosterIds) {
       const p = league.players[id];
       const before = stars(p);
-      ageOneYear(p, rng, t.facilities.training + t.staff.offense * 0.2);
+      ageOneYear(p, rng, 1 + t.facilities.training * 1.3 + t.staff.development * 0.6);
       const after = stars(p);
       if (t.id === ut.id && after !== before) addNews(league, `${fullName(p)} ${after > before ? 'improved' : 'declined'} to ${after.toFixed(1)} stars.`, after > before ? 'good' : 'bad');
     }
@@ -219,7 +220,7 @@ export function runLottery(league: LeagueSave, rng: Rng) {
     // Hidden potential: real upside for young prospects.
     p.potential = clamp(Math.round((stars(p) + rng.range(0.5, 2.5) + (i < 10 ? 0.5 : 0)) * 2) / 2, stars(p), 5);
     const ut = userTeam(league);
-    const err = 1.3 - ut.staff.scouting * 0.15;
+    const err = 1.3 - ut.staff.development * 0.25;
     p.scoutedPotential = clamp(Math.round((p.potential + rng.normal(0, err)) * 2) / 2, 0.5, 5);
     p.scoutLevel = 0;
     p.contract = { salaryMillions: 1, yearsRemaining: 0 };
@@ -248,7 +249,7 @@ export function draftPlayer(league: LeagueSave, playerId: string) {
   const team = teamById(league, slot.teamId);
   if (!d.prospectIds.includes(playerId)) throw new Error('That player is not available.');
   if (team.rosterIds.length >= ROSTER_MAX) {
-    if (team.id === league.userTeamId) throw new Error('Your roster is full (15). Release a player before drafting, or skip the pick.');
+    if (team.id === league.userTeamId) throw new Error(`Your roster is full (${ROSTER_MAX}). Release a player before drafting, or pass on the pick.`);
     const worst = team.rosterIds.map((id) => league.players[id]).sort((a, b) => stars(a) - stars(b))[0];
     team.rosterIds = team.rosterIds.filter((id) => id !== worst.id);
     league.freeAgents.push(worst.id);
@@ -265,8 +266,9 @@ export function draftPlayer(league: LeagueSave, playerId: string) {
   d.current++;
   if (team.id === league.userTeamId) {
     addNews(league, `Drafted ${fullName(p)} (${p.position}) with pick ${slot.round}-${slot.pick}.`, 'good');
+    placeNewPlayer(team, playerId);
     repairRotation(league, team);
-  }
+  } else sortRotation(league, team);
 }
 
 export function skipPick(league: LeagueSave) {
@@ -283,7 +285,10 @@ export function runCpuPicks(league: LeagueSave) {
     if (slot.teamId === league.userTeamId) return;
     const team = teamById(league, slot.teamId);
     const best = d.prospectIds.map((id) => league.players[id]).sort((a, b) => prospectValue(league, b, team) - prospectValue(league, a, team))[0];
-    if (!best) {
+    // With seven-man rosters a full CPU team only drafts a prospect clearly better than its weakest player.
+    const worst = team.rosterIds.map((id) => league.players[id]).sort((a, b) => stars(a) - stars(b))[0];
+    const full = team.rosterIds.length >= ROSTER_MAX;
+    if (!best || (full && worst && (best.scoutedPotential ?? stars(best)) < stars(worst) + 1.5)) {
       skipPick(league);
       continue;
     }
@@ -313,19 +318,18 @@ export function finishDraft(league: LeagueSave) {
   }
 }
 
-/** CPU free agency: fill rosters to 13 with the best affordable players. */
+/** CPU free agency: fill rosters to seven with the best affordable players. */
 export function cpuFreeAgency(league: LeagueSave, rng: Rng) {
   const fas = () => league.freeAgents.map((id) => league.players[id]).filter((p) => p && !p.retired).sort((a, b) => stars(b) - stars(a));
   const teams = rng.shuffle(league.teams.filter((t) => t.id !== league.userTeamId));
   for (let round = 0; round < 6; round++) {
     for (const t of teams) {
-      if (t.rosterIds.length >= 13) continue;
+      if (t.rosterIds.length >= ROSTER_MAX) continue;
       for (const p of fas()) {
         const ask = p.demand ?? { salaryMillions: marketSalary(p), yearsRemaining: 2 };
         let salary = ask.salaryMillions;
         if (!canSign(league, t, salary, ask.yearsRemaining).ok) {
-          salary = MIN_SALARY;
-          if (stars(p) > 1.5 || !canSign(league, t, salary, 1).ok) continue;
+          continue;
         }
         p.contract = { salaryMillions: salary, yearsRemaining: ask.yearsRemaining };
         p.demand = undefined;
@@ -360,7 +364,6 @@ export function startNewSeason(league: LeagueSave) {
   withRng(league, (rng) => {
     cpuFreeAgency(league, rng);
     const ut = userTeam(league);
-    if (ut.rosterIds.length < 12) throw new Error(`You need at least 12 players to start the season (you have ${ut.rosterIds.length}). Sign free agents.`);
     league.season++;
     league.day = 0;
     league.phase = 'regular';
@@ -374,9 +377,6 @@ export function startNewSeason(league: LeagueSave) {
     for (const t of league.teams) {
       Object.assign(t, { wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0, confWins: 0, confLosses: 0, streak: 0, homeWins: 0, homeLosses: 0 });
       t.deadCap = t.deadCap.filter((d) => d.season >= league.season);
-      // Staff wages come out of the credit balance.
-      const wages = t.staffMembers.reduce((s, m) => s + m.salaryCredits, 0);
-      t.credits = Math.max(0, t.credits - wages + 10);
       for (const id of t.rosterIds) {
         const p = league.players[id];
         p.seasonStats = emptyStats();
@@ -406,6 +406,7 @@ export function startNewSeason(league: LeagueSave) {
     league.devBaseline = {};
     for (const id of ut.rosterIds) league.devBaseline[id] = stars(league.players[id]);
     league.staffPool = staffCandidates(league, rng);
+    refreshMarket(league, rng);
     addNews(league, `Season ${league.season} tips off. Payroll $${payroll(league, ut).toFixed(1)}M.`, 'info');
   });
 }

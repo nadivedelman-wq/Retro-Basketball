@@ -1,96 +1,38 @@
-import { capSpace, deadMoney, nextSeasonCommitments, payroll, MIN_EXCEPTION_MAX } from '../../sim/economy';
+import { SALARY_BANDS } from '../../sim/config';
+import { deadMoney, nextSeasonCommitments } from '../../sim/economy';
 import { userTeam } from '../../sim/league';
 import { fullName, stars } from '../../sim/players';
-import { askingContract, signFreeAgent } from '../../sim/transactions';
 import type { App } from '../app';
 import { fmtMoney, h } from '../dom';
-import { capSummary, screenTitle, shell, starsEl } from '../widgets';
-import { heightStr, openPlayer } from './roster';
-
-export function freeAgentTable(app: App, limit = 60) {
-  const l = app.league!;
-  const t = userTeam(l);
-  const fas = l.freeAgents
-    .map((id) => l.players[id])
-    .filter((p) => p && !p.retired)
-    .sort((a, b) => stars(b) - stars(a))
-    .slice(0, limit);
-  if (!fas.length) return h('div', { class: 'muted' }, 'No free agents available.');
-  const space = capSpace(l, t);
-  return h(
-    'div',
-    { class: 'table-wrap' },
-    h(
-      'table',
-      { class: 't' },
-      h('thead', null, h('tr', null, ['Player', 'Pos', 'Age', 'Ht', 'Now', 'Pot', 'Asking', 'Yrs', ''].map((c) => h('th', null, c)))),
-      h(
-        'tbody',
-        null,
-        fas.map((p) => {
-          const ask = askingContract(l, p);
-          const fits = ask.salary <= space || (ask.salary <= MIN_EXCEPTION_MAX && t.rosterIds.length < 13);
-          return h(
-            'tr',
-            null,
-            h('td', { class: 'click', style: 'cursor:pointer', onclick: () => openPlayer(app, p.id) }, `${p.firstName[0]}. ${p.lastName}`, p.traits.length ? h('span', { class: 'tiny muted' }, `  ${p.traits[0]}`) : null),
-            h('td', null, p.position),
-            h('td', null, String(p.age)),
-            h('td', null, heightStr(p.heightCm)),
-            h('td', null, starsEl(stars(p))),
-            h('td', null, p.scoutedPotential === null ? '?' : starsEl(p.scoutedPotential)),
-            h('td', { class: fits ? '' : 'bad' }, fmtMoney(ask.salary)),
-            h('td', null, String(ask.years)),
-            h(
-              'td',
-              null,
-              h(
-                'button',
-                {
-                  class: `btn small ${fits ? 'primary' : ''}`,
-                  onclick: () => app.commit(signFreeAgent(app.league!, p.id)),
-                  title: fits ? 'Sign at his asking price' : 'Over your cap space: the league will explain why',
-                },
-                'Sign',
-              ),
-            ),
-          );
-        }),
-      ),
-    ),
-  );
-}
+import { capStrip, roleOf, roleTag, screenTitle, shell, starsEl } from '../widgets';
+import { openPlayer } from './roster';
 
 export function capScreen(app: App) {
   const l = app.league!;
   const t = userTeam(l);
   const players = t.rosterIds.map((id) => l.players[id]).sort((a, b) => b.contract.salaryMillions - a.contract.salaryMillions);
-  const summary = h(
+  let lo = 0.5;
+  const bands = SALARY_BANDS.map((b) => {
+    const label = lo === b.maxStars ? `${b.maxStars.toFixed(1)}` : `${lo.toFixed(1)}-${b.maxStars.toFixed(1)}`;
+    lo = b.maxStars + 0.5;
+    return h('tr', null, h('td', null, starsEl(b.maxStars), ` ${label}`), h('td', { class: 'num' }, `$${b.min}M - $${b.max}M`));
+  });
+  const rules = h(
     'section',
     { class: 'panel' },
-    h('h2', null, 'Salary Cap'),
-    capSummary(l, t),
-    h(
-      'div',
-      { class: 'grid three', style: 'margin-top:10px;gap:8px' },
-      h('div', { class: 'chip' }, 'Cap space ', h('b', null, fmtMoney(capSpace(l, t)))),
-      h('div', { class: 'chip' }, 'Payroll ', h('b', null, fmtMoney(payroll(l, t)))),
-      h('div', { class: 'chip' }, 'Dead money ', h('b', null, fmtMoney(deadMoney(l, t)))),
-      h('div', { class: 'chip' }, 'Next season ', h('b', null, fmtMoney(nextSeasonCommitments(l, t)))),
-      h('div', { class: 'chip' }, 'Roster ', h('b', null, `${t.rosterIds.length}/15`)),
-      h('div', { class: 'chip' }, 'Team cap ', h('b', null, fmtMoney(t.capMillions))),
-    ),
-    h('h3', { style: 'margin-top:12px' }, 'League rules'),
+    h('h2', null, 'Cap rules'),
     h(
       'ul',
-      { class: 'news tiny', style: 'max-height:none' },
-      h('li', { class: 'info' }, `Hard cap: payroll (salaries + dead money) must stay at or under $${t.capMillions}M to sign anyone.`),
-      h('li', { class: 'info' }, `Minimum exception: with fewer than 13 players you may sign a $1.0-${MIN_EXCEPTION_MAX.toFixed(1)}M player even over the cap.`),
-      h('li', { class: 'info' }, 'Rosters hold 12-15 players. Contracts run 1-4 years.'),
-      h('li', { class: 'info' }, 'Releasing a player: 50% of his current salary stays on this season’s cap as dead money; later years are wiped.'),
-      h('li', { class: 'info' }, 'Re-signing your own expiring players may go up to 115% of the cap (veteran rights).'),
-      h('li', { class: 'info' }, 'The cap can be raised permanently from the Front Office with credits.'),
+      { class: 'news', style: 'max-height:none' },
+      h('li', { class: 'info' }, `Hard cap: contracted salaries plus dead money must stay at or under $${t.capMillions}M. Any signing that would break it is refused with the reason.`),
+      h('li', { class: 'info' }, 'Seven contracted players at most: five active, two bench. Empty lineup spots are filled by 0.5-star replacements with no salary and no cap hit.'),
+      h('li', { class: 'info' }, 'Contracts run 1-4 seasons. Price follows star rating, nudged by age, potential, morale and recent form.'),
+      h('li', { class: 'info' }, 'Releasing a player leaves 50% of his salary as dead money for the rest of this season only.'),
+      h('li', { class: 'info' }, 'Coach Coins (CC) are a separate currency. They pay market signing fees and upgrades, never salary.'),
+      h('li', { class: 'info' }, 'The cap can be raised permanently in the Front Office for a high, escalating CC price.'),
     ),
+    h('h3', { style: 'margin-top:10px' }, 'Salary bands'),
+    h('table', { class: 't' }, h('tbody', null, bands)),
   );
   const contracts = h(
     'section',
@@ -102,7 +44,7 @@ export function capScreen(app: App) {
       h(
         'table',
         { class: 't' },
-        h('thead', null, h('tr', null, ['Player', 'Pos', 'Age', 'Now', 'Salary', 'Years left', 'Expires'].map((c) => h('th', null, c)))),
+        h('thead', null, h('tr', null, ['Player', 'Role', 'Now', 'Salary', 'Years', 'Expires'].map((c) => h('th', null, c)))),
         h(
           'tbody',
           null,
@@ -111,8 +53,7 @@ export function capScreen(app: App) {
               'tr',
               { class: 'click', onclick: () => openPlayer(app, p.id) },
               h('td', null, fullName(p)),
-              h('td', null, p.position),
-              h('td', null, String(p.age)),
+              h('td', null, roleTag(roleOf(t, p))),
               h('td', null, starsEl(stars(p))),
               h('td', { class: 'gold' }, fmtMoney(p.contract.salaryMillions)),
               h('td', null, String(p.contract.yearsRemaining)),
@@ -121,16 +62,11 @@ export function capScreen(app: App) {
           ),
           t.deadCap
             .filter((d) => d.season === l.season)
-            .map((d) => h('tr', null, h('td', { class: 'muted' }, 'Dead money (released)'), h('td', null, ''), h('td', null, ''), h('td', null, ''), h('td', { class: 'bad' }, fmtMoney(d.amount)), h('td', null, ''), h('td', null, `S${d.season}`))),
+            .map((d) => h('tr', null, h('td', { class: 'muted' }, 'Dead money (released)'), h('td', null, ''), h('td', null, ''), h('td', { class: 'bad' }, fmtMoney(d.amount)), h('td', null, ''), h('td', null, `S${d.season}`))),
         ),
       ),
     ),
+    h('div', { class: 'row', style: 'margin-top:10px' }, h('span', { class: 'chip' }, 'Dead money ', h('b', null, fmtMoney(deadMoney(l, t)))), h('span', { class: 'chip' }, 'Committed next season ', h('b', null, fmtMoney(nextSeasonCommitments(l, t))))),
   );
-  return shell(
-    app,
-    'cap',
-    screenTitle('Contracts & Cap'),
-    h('div', { class: 'grid two' }, summary, contracts),
-    h('section', { class: 'panel', style: 'margin-top:14px' }, h('h2', null, 'Free Agents', h('span', { class: 'tiny muted' }, 'Players sign at their asking price')), freeAgentTable(app)),
-  );
+  return shell(app, 'cap', screenTitle('Contracts & Cap'), capStrip(l, t), h('div', { class: 'grid two' }, contracts, rules));
 }

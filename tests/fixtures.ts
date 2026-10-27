@@ -17,7 +17,7 @@ export function fixtureTeam(id: string, rating = 6): MatchTeamInfo {
     id, abbr: id.toUpperCase(), name: id, colors: ['#c33', '#fff'], players,
     starters: players.slice(0, 5).map((p) => p.id), rotation: players.slice(5).map((p) => p.id),
     tactics: { pace: 3, threeRate: 3, pickAndRoll: 3, postUps: 3, defAggression: 3, rebounding: 3 },
-    staff: { offense: 3, defense: 3 },
+    staff: { offense: 1, defense: 1 },
   };
 }
 

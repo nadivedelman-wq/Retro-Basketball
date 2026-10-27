@@ -1,4 +1,6 @@
-import { Rng, clamp } from '../core/rng';
+import { Rng, clamp, hashString } from '../core/rng';
+import { MORALE_BANDS } from './config';
+import { salaryFor } from './economy';
 import {
   RATING_KEYS,
   emptyStats,
@@ -69,13 +71,8 @@ export function stars(p: Pick<Player, 'ratings' | 'archetype'>): number {
 }
 
 /** Salary in $M a player would command, before market noise. */
-export function marketSalary(p: Pick<Player, 'ratings' | 'archetype' | 'age' | 'morale'>): number {
-  const s = stars(p);
-  let base = 1 + 34 * Math.pow((s - 0.5) / 4.5, 2.1);
-  if (p.age >= 32) base *= 0.85;
-  if (p.age >= 35) base *= 0.75;
-  if (p.age <= 23) base *= 0.95;
-  return Math.round(clamp(base, 1, 35) * 10) / 10;
+export function marketSalary(p: Pick<Player, 'ratings' | 'archetype' | 'age' | 'morale' | 'potential'> & { form?: number }): number {
+  return salaryFor(stars(p), { age: p.age, potential: p.potential, morale: p.morale, form: p.form });
 }
 
 export function demandYears(p: Pick<Player, 'age'>, s: number, rng: Rng): number {
@@ -105,6 +102,9 @@ export type GenOptions = {
   id: string;
   usedNumbers?: Set<number>;
   draftProspect?: boolean;
+  /** Adjust ratings until the star rating equals `target` exactly. */
+  exactStars?: boolean;
+  potential?: number;
 };
 
 export function generatePlayer(rng: Rng, o: GenOptions): Player {
@@ -155,7 +155,7 @@ export function generatePlayer(rng: Rng, o: GenOptions): Player {
     scoutedPotential: null,
     scoutLevel: 0,
     xp: 0,
-    morale: rng.int(55, 80),
+    morale: rng.int(62, 82),
     condition: 100,
     traits,
     contract: { salaryMillions: 1, yearsRemaining: 1 },
@@ -169,8 +169,45 @@ export function generatePlayer(rng: Rng, o: GenOptions): Player {
   const youth = Math.max(0, 25 - age);
   p.potential = clamp(Math.round((s + rng.range(0, 0.35) * youth + rng.normal(0, 0.3)) * 2) / 2, s, 5);
   if (!o.draftProspect) p.scoutedPotential = p.potential;
-  const salary = marketSalary(p) * rng.range(0.85, 1.15);
-  p.contract = { salaryMillions: Math.round(clamp(salary, 1, 35) * 10) / 10, yearsRemaining: demandYears(p, s, rng) };
+  if (o.exactStars) forceStars(p, o.target, rng);
+  const st = stars(p);
+  if (p.potential < st) p.potential = st;
+  if (o.potential !== undefined) p.potential = clamp(Math.max(st, o.potential), 0.5, 5);
+  if (!o.draftProspect) p.scoutedPotential = p.potential;
+  p.contract = { salaryMillions: marketSalary(p), yearsRemaining: demandYears(p, st, rng) };
+  return p;
+}
+
+/** Nudge ratings one point at a time (favouring the archetype's skills) until the star rating hits the target. */
+export function forceStars(p: Player, target: number, rng: Rng) {
+  const tpl = ARCHETYPES[p.archetype].tpl;
+  for (let guard = 0; guard < 120; guard++) {
+    const s = stars(p);
+    if (s === target) return;
+    const up = s < target;
+    const keys = RATING_KEYS.filter((k) => (up ? p.ratings[k] < 10 : p.ratings[k] > 1));
+    if (!keys.length) return;
+    const k = rng.weighted(keys, (k2) => (up ? tpl[k2] : 11 - tpl[k2]));
+    p.ratings[k] += up ? 1 : -1;
+  }
+}
+
+/** A temporary 0.5-star fill-in for an empty lineup spot. Never stored on a roster. */
+export function makeReplacement(teamId: string, n: number, number: number): Player {
+  const rng = new Rng(hashString(`${teamId}:${n}`));
+  const pos = (['PG', 'SG', 'SF', 'PF', 'C'] as Position[])[n % 5];
+  const p = generatePlayer(rng, { id: `rep_${teamId}_${n}`, position: pos, archetype: 'All-Rounder', target: 0.5, age: 27 });
+  for (const k of RATING_KEYS) p.ratings[k] = k === 'stamina' ? 4 : rng.int(1, 2);
+  p.firstName = 'Reserve';
+  p.lastName = `#${number}`;
+  p.jerseyNumber = number;
+  p.traits = [];
+  p.potential = 0.5;
+  p.scoutedPotential = 0.5;
+  p.morale = 60;
+  p.contract = { salaryMillions: 0, yearsRemaining: 0 };
+  p.replacement = true;
+  p.appearance = { ...p.appearance, accessory: 'none' };
   return p;
 }
 
@@ -188,10 +225,16 @@ export function shortName(p: Pick<Player, 'firstName' | 'lastName'>) {
 }
 
 /** Morale/condition-adjusted ratings used on game day. */
+export function moraleBand(morale: number) {
+  return MORALE_BANDS.find((b) => morale >= b.min) ?? MORALE_BANDS[MORALE_BANDS.length - 1];
+}
+
+/** Game-day ratings: morale scales every rating within a bounded range (-12% to +4%). Replacements have no morale. */
 export function gameRatings(p: Player): Ratings {
   const r = { ...p.ratings };
-  const moraleAdj = p.morale < 30 ? -0.6 : p.morale < 45 ? -0.3 : p.morale > 85 ? 0.2 : 0;
-  if (moraleAdj) for (const k of RATING_KEYS) r[k] = clamp(r[k] + moraleAdj, 1, 10);
+  if (p.replacement) return r;
+  const mod = moraleBand(p.morale).mod;
+  if (mod) for (const k of RATING_KEYS) r[k] = clamp(r[k] * (1 + mod), 1, 10);
   return r;
 }
 

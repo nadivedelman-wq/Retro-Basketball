@@ -4,6 +4,7 @@ import { PixelBuffer, drawText, hexToRgba } from '../../art/pixels';
 import { sfx } from '../../audio/sfx';
 import { listSlots, loadLeague } from '../../persist/save';
 import type { App } from '../app';
+import { PALETTE } from '../palette';
 import { h } from '../dom';
 
 /** The game's wordmark, drawn from the Hardwood font with stripes and a hard shadow. */
@@ -20,28 +21,28 @@ function wordmark(): HTMLCanvasElement {
       [2, 3],
       [3, 2],
     ])
-      drawText(b, text, x + dx, y + dy, hexToRgba('#0b0910'), scale);
+      drawText(b, text, x + dx, y + dy, hexToRgba(PALETTE.navyDeep), scale);
     for (const [dx, dy] of [
       [-1, 0],
       [1, 0],
       [0, -1],
       [0, 1],
     ])
-      drawText(b, text, x + dx, y + dy, hexToRgba('#2a0f1a'), scale);
+      drawText(b, text, x + dx, y + dy, hexToRgba(PALETTE.royalLo), scale);
     // stripes: top colour then bottom colour
     const tmp = new PixelBuffer(W, H);
-    drawText(tmp, text, x, y, hexToRgba('#ffffff'), scale);
+    drawText(tmp, text, x, y, hexToRgba(PALETTE.ink), scale);
     for (let yy = y; yy < y + 7 * scale; yy++) {
       const t = (yy - y) / (7 * scale);
       const col = hexToRgba(t < 0.5 ? top : bottom);
-      for (let xx = 0; xx < W; xx++) if (tmp.get(xx, yy)[3]) b.set(xx, yy, (yy - y) % scale === 0 && t > 0.45 && t < 0.56 ? hexToRgba('#ffffff') : col);
+      for (let xx = 0; xx < W; xx++) if (tmp.get(xx, yy)[3]) b.set(xx, yy, (yy - y) % scale === 0 && t > 0.45 && t < 0.56 ? hexToRgba(PALETTE.ink) : col);
     }
   };
-  draw('PIXEL', 4, 5, '#ffd34a', '#ff8c2a');
-  draw('HARDWOOD', 46, 4, '#ff8c2a', '#e0431e');
+  draw('PIXEL', 4, 5, PALETTE.yellow, PALETTE.gold);
+  draw('HARDWOOD', 46, 4, PALETTE.ink, PALETTE.sky);
   // Court stripe under the logo
-  b.rect(20, 82, 200, 2, hexToRgba('#c98f52'));
-  b.rect(20, 84, 200, 1, hexToRgba('#7a4f28'));
+  b.rect(20, 82, 200, 2, hexToRgba(PALETTE.yellow));
+  b.rect(20, 84, 200, 1, hexToRgba(PALETTE.royal));
   return b.toCanvas();
 }
 
@@ -60,7 +61,7 @@ export function titleScreen(app: App) {
     const floor = logoBase.height + 22;
     const x = 22 + ((t * 40) % 196);
     const y = floor - 6 - Math.abs(Math.sin(t * 5)) * 18;
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillStyle = PALETTE.navyDeep;
     ctx.fillRect(Math.round(x) + 1, floor, 4, 1);
     ctx.drawImage(ball, Math.round(x), Math.round(y));
     raf = requestAnimationFrame(loop);

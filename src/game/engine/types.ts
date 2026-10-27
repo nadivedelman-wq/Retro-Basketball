@@ -25,8 +25,8 @@ export type MatchTeamInfo = {
   starters: string[];
   rotation: string[];
   tactics: Tactics;
-  /** Coaching quality 1-5 for offense/defense execution. */
-  staff: { offense: number; defense: number };
+  /** Coach tiers 0-3 for offense/defense execution, and the recovery facility level 0-3. */
+  staff: { offense: number; defense: number; recovery?: number };
 };
 
 export type MatchMode = 'game' | 'practice';

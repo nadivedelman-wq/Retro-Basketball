@@ -48,18 +48,27 @@ Keys can be rebound in **Settings**. With a mouse, click a teammate to pass to h
 
 **Franchise**
 - 30 fictional clubs, two conferences, six divisions; 20/41/82-game seasons; 8 or 16 playoff teams; best-of-1/3/5/7 series.
-- 13-15 man rosters with positions, archetypes, 1-10 ratings, half-star current/potential ratings, traits with gameplay effects, morale, condition, injuries, contracts, season and career stats.
-- Simplified fictional cap ($100M default, hard cap, minimum-salary exception, 50% dead money on release, 115% re-sign limit) with readable explanations for every rejected move.
-- Coaching credits from wins, home games, playoffs and objectives; facilities (training, medical, arena), staff (offence, defence, scouting), team dinners and permanent cap expansions.
-- Rotation editor (starters, bench order, minutes plan), playbook sliders that change the AI, weekly events with consequences.
-- Off-season: awards (MVP, ROY, DPOY, scoring title, Finals MVP), records, retirements, aging and development, re-signings, weighted draft lottery, 2-round draft with fuzzy scouting, free agency, new season.
-- Live and simulated games feed the same `applyGameResult`, which is idempotent per game id.
+- **Seven-man rosters**: five active players and up to two bench players. Choose who starts, who comes off the bench and who sits, with tap-to-swap on the Lineup screen. Stars are never forced in. Empty or unavailable spots are filled on game day by generated **0.5-star replacements** (`Reserve #90`): no contract, no cap hit, no development, never on the roster. Live and simulated games both use the chosen lineup.
+- **Weak start, long climb**: a new franchise gets seven cheap players rated 3.0, 2.5, 2.0, 2.0, 1.5, 1.0 and 0.5 stars. A few have real potential (up to 5 stars), most do not. Players grow toward their potential from games, training, coaches and the off-season; veterans decline.
+- **Salary cap**: a fictional hard cap of $100M. Salaries follow star bands ($1-3M at 0.5-1 star up to $22-26M at 5 stars), adjusted for age, potential, morale and form. Contracts run 1-4 seasons. Payroll, cap and available cap are shown on the roster, market and contracts screens. Over-cap moves are refused with the reason.
+- **Coach Coins (CC)**: +3 per win, +1 per loss, +15 for a championship, plus one-time milestones (first win, five-game streak, playoff berth, series win, a 30-point game). Coins are a separate currency from salary. Every purchase shows its cost and asks for confirmation.
+- **Spending**: Fan Engagement, Training and Recovery upgrades (three levels each); Basic, Strong and Elite offensive, defensive and development coaches; team dinners; permanent cap expansions at escalating prices. All prices live in `src/sim/config.ts`.
+- **Player Market**: 3-5 saved offers of 4.0, 4.5 or 5.0-star players. Offers refresh every 3 of your games and cannot be rerolled. Signing needs enough CC, enough cap room and an open roster spot.
+- **Morale**: every contracted player has a 0-100 meter with a label (Excellent, Good, Frustrated, Unhappy, Disengaged) and a reason, such as "Morale -8: limited minutes in last 3 games". Stars expect more minutes and touches than reserves. Defensive specialists are not judged on touches. One rest game barely matters. Morale scales ratings within -12% to +4%.
+- Weekly events, rotation and playbook, injuries, two-round draft with fuzzy scouting, re-signings, awards, records and history.
+- Live and simulated games feed the same `applyGameResult`, which is idempotent per game id, so a game can never pay coins twice.
+
+**Look**: a blue-and-yellow pixel UI across every menu and the in-game HUD. Tokens live in `src/ui/palette.ts`. Stars and morale are always shown with symbols or labels, not colour alone. Team colours are kept for jerseys, logos and courts so opponents stay distinguishable.
+
+**Saves**: older saves migrate automatically (v3 to v4). Each roster keeps its seven best players and the rest become free agents. Contracts are re-priced to the new bands, credits become Coach Coins, facilities and staff map to the new levels, and a news item explains the upgrade. Nothing is deleted.
 
 ## Defaults and assumptions
 
 - The game clock always shows 12:00 quarters; it runs faster to fit the chosen real-time quarter length (1, 2, 3 or 5 minutes). The shot clock runs at a slower multiplier so possessions stay playable. Short quarters mean fewer possessions, so scores scale with quarter length (about 55-60 points per team with 3-minute quarters). Simulated games use the same possession count as live games at the chosen length, so league stats stay comparable.
 - Backcourt, 8-second and 5-second inbound violations are not enforced yet.
 - Trades are not implemented (listed as v2 in the spec). Draft pick ownership is tracked so trades can slot in later.
+- Besides the empty starter slots, the bench is topped up to two with replacements on game day so foul trouble and fatigue can always be covered.
+- Users add talent through the Player Market, the draft and re-signings. The lower-rated free-agent pool is used by CPU teams.
 
 ## Code map
 

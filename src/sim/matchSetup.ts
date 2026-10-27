@@ -1,12 +1,13 @@
 import { hashString } from '../core/rng';
 import type { LeagueSave, Team } from '../core/types';
 import type { MatchConfig, MatchMode, MatchTeamInfo } from '../game/engine/types';
-import { rotationOrder } from './gameSim';
+import { gameDayLineup } from './gameSim';
 import { gameRatings, fullName } from './players';
 
-/** Turns a franchise team into match-engine input. Injured players are never included. */
+/** Turns a franchise team into match-engine input: the chosen lineup plus replacements. Injured or sitting players never dress. */
 export function matchTeam(league: LeagueSave, team: Team): MatchTeamInfo {
-  const players = rotationOrder(league, team);
+  const day = gameDayLineup(league, team);
+  const players = day.players;
   return {
     id: team.id,
     abbr: team.abbr,
@@ -14,7 +15,7 @@ export function matchTeam(league: LeagueSave, team: Team): MatchTeamInfo {
     colors: team.colors,
     players: players.map((p) => ({
       id: p.id,
-      name: p.lastName.toUpperCase(),
+      name: p.replacement ? `RESERVE` : p.lastName.toUpperCase(),
       fullName: fullName(p),
       number: p.jerseyNumber,
       position: p.position,
@@ -25,10 +26,10 @@ export function matchTeam(league: LeagueSave, team: Team): MatchTeamInfo {
       startEnergy: 0.55 + 0.45 * (p.condition / 100),
       form: p.form,
     })),
-    starters: team.starters.filter((id) => players.some((p) => p.id === id)),
-    rotation: team.rotation.filter((id) => players.some((p) => p.id === id)),
+    starters: day.starters,
+    rotation: day.bench,
     tactics: team.tactics,
-    staff: { offense: team.staff.offense, defense: team.staff.defense },
+    staff: { offense: team.staff.offense, defense: team.staff.defense, recovery: team.facilities.recovery },
   };
 }
 

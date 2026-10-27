@@ -112,16 +112,27 @@ export type Player = {
   rookieSeason?: number;
   /** Asking contract while the player is negotiating (expiring or free agent). */
   demand?: Contract;
+  /** Last few games of involvement, newest last (drives morale). */
+  recent?: GameInvolvement[];
+  /** Plain-language reason for the latest morale change. */
+  moraleNote?: string;
+  /** Temporary 0.5-star fill-in: no contract, no cap hit, never saved on a roster. */
+  replacement?: boolean;
 };
 
-export type Facilities = { training: number; medical: number; arena: number };
+export type GameInvolvement = { minutes: number; touches: number; shots: number; started: boolean; dressed: boolean };
+
+/** Upgrade levels 0-3 for each track (see sim/config UPGRADES). */
+export type Facilities = { training: number; recovery: number; fans: number };
+
+export type CoachRole = 'offense' | 'defense' | 'development';
 
 export type StaffMember = {
   id: string;
   name: string;
-  role: 'offense' | 'defense' | 'scouting';
-  rating: number; // 1-5
-  salaryCredits: number; // credits per season
+  role: CoachRole;
+  /** 1 Basic, 2 Strong, 3 Elite. */
+  tier: number;
   perk: string;
 };
 
@@ -150,17 +161,20 @@ export type Team = {
   conference: 'East' | 'West';
   division: string;
   rosterIds: string[];
+  /** Five starter slots; '' marks an empty slot that a 0.5-star replacement fills on game day. */
   starters: string[];
-  /** Bench order after starters, highest priority first. */
+  /** Up to two bench players who dress for games. Anyone else on the roster sits. */
   rotation: string[];
   /** Planned minutes per player id (0-48). Missing = auto. */
   minutesPlan: Record<string, number>;
   wins: number;
   losses: number;
+  /** Coach Coins (CC): earned from games, spent on upgrades, coaches and market signings. */
   credits: number;
   capMillions: number;
   facilities: Facilities;
-  staff: { offense: number; defense: number; scouting: number };
+  /** Coach tier per role (0 = none). */
+  staff: Record<CoachRole, number>;
   staffMembers: StaffMember[];
   tactics: Tactics;
   strength: string;
@@ -199,6 +213,8 @@ export type BoxLine = {
   turnovers: number;
   fouls: number;
   plusMinus: number;
+  /** Times the player got the ball (catches, rebounds, steals). */
+  touches?: number;
 };
 
 export type BoxScore = {
@@ -329,6 +345,12 @@ export type LeagueSave = {
   devBaseline: Record<string, number>;
   /** Staff candidates available to hire this season. */
   staffPool: StaffMember[];
+  /** Player market: 4-5 star players unlocked with Coach Coins. */
+  market: { offers: { playerId: string; coinPrice: number }[]; gamesUntilRefresh: number };
+  /** One-time milestone bonuses already paid. */
+  achievements: string[];
+  /** Coins from the last applied user game, for the postgame reward animation. */
+  lastReward?: { gameId: string; coins: number; reasons: string[] };
 };
 
 export type Objective = {

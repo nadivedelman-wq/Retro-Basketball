@@ -1,8 +1,9 @@
-import { portraitUrl, teamBadge } from '../art/logo';
+import { coinIcon, portraitUrl, teamBadge } from '../art/logo';
 import { RATING_KEYS, type BoxLine, type BoxScore, type LeagueSave, type Player, type Team } from '../core/types';
 import { capSpace, payroll } from '../sim/economy';
+import { PALETTE } from './palette';
 import { teamById, userTeam } from '../sim/league';
-import { stars } from '../sim/players';
+import { moraleBand, stars } from '../sim/players';
 import { nextUserGame } from '../sim/season';
 import type { App, Screen } from './app';
 import { fmtMoney, h, pct, starText } from './dom';
@@ -13,7 +14,7 @@ export function teamOfPlayer(league: LeagueSave, id: string): Team | undefined {
 
 export function portrait(league: LeagueSave, p: Player, cls = 'portrait') {
   const t = teamOfPlayer(league, p.id);
-  const colors = t ? t.colors : ['#5a5a6a', '#d0d0d0'];
+  const colors = t ? t.colors : [PALETTE.royal, PALETTE.skySoft];
   return h('img', {
     class: cls,
     alt: '',
@@ -51,13 +52,63 @@ export function meter(value: number, max = 100, cls = '') {
 const NAV: [Screen, string][] = [
   ['home', 'Home'],
   ['roster', 'Roster'],
-  ['lineup', 'Rotation'],
+  ['lineup', 'Lineup'],
+  ['market', 'Market'],
   ['cap', 'Contracts'],
   ['office', 'Front Office'],
   ['league', 'League'],
   ['history', 'History'],
   ['settings', 'Settings'],
 ];
+
+export function coin(cls = 'coin') {
+  return h('img', { class: cls, src: coinIcon(), alt: '' });
+}
+
+/** Coach Coins amount with the coin icon (the icon is decorative; the text says CC). */
+export function ccEl(n: number) {
+  return h('span', { class: 'cc' }, coin(), ` ${n} CC`);
+}
+
+/** Current payroll / salary cap / available cap, shown on roster and market screens. */
+export function capStrip(league: LeagueSave, team: Team) {
+  const pay = payroll(league, team);
+  const space = capSpace(league, team);
+  return h(
+    'div',
+    { class: 'capstrip', role: 'group', 'aria-label': 'Salary cap' },
+    h('div', null, h('span', { class: 'muted' }, 'Current payroll'), h('b', null, fmtMoney(pay))),
+    h('div', null, h('span', { class: 'muted' }, 'Salary cap'), h('b', null, fmtMoney(team.capMillions))),
+    h('div', { class: space < 0 ? 'over' : '' }, h('span', { class: 'muted' }, 'Available cap'), h('b', null, fmtMoney(space))),
+  );
+}
+
+export type Role = 'starter' | 'reserve' | 'sitting' | 'injured';
+
+export function roleOf(team: Team, p: Player): Role {
+  if (p.injury) return 'injured';
+  if (team.starters.includes(p.id)) return 'starter';
+  if (team.rotation.includes(p.id)) return 'reserve';
+  return 'sitting';
+}
+
+export function roleTag(role: Role) {
+  const label = { starter: 'Starter', reserve: 'Bench', sitting: 'Sitting', injured: 'Injured' }[role];
+  return h('span', { class: `role ${role}` }, label);
+}
+
+/** Morale meter with its text label (never colour alone) and the latest reason. */
+export function moraleEl(p: Player, withNote = true) {
+  const band = moraleBand(p.morale);
+  const mod = Math.round(band.mod * 100);
+  return h(
+    'div',
+    { class: 'morale-row' },
+    meter(p.morale, 100, p.morale >= 60 ? '' : p.morale >= 40 ? 'gold' : 'bad'),
+    h('span', { class: 'tiny' }, `${Math.round(p.morale)} ${band.label}${mod ? ` (${mod > 0 ? '+' : ''}${mod}%)` : ''}`),
+    withNote && p.moraleNote ? h('span', { class: 'morale-note' }, p.moraleNote) : null,
+  );
+}
 
 /** Topbar + navigation used by every franchise screen. */
 export function shell(app: App, active: Screen, ...content: HTMLElement[]) {
@@ -66,6 +117,7 @@ export function shell(app: App, active: Screen, ...content: HTMLElement[]) {
   const next = nextUserGame(l);
   const nav = NAV.slice();
   if (l.phase === 'offseason') nav.splice(1, 0, ['offseason', 'Off-Season']);
+  const space = capSpace(l, t);
   return h(
     'div',
     { class: 'shell' },
@@ -73,26 +125,53 @@ export function shell(app: App, active: Screen, ...content: HTMLElement[]) {
       'header',
       { class: 'topbar' },
       badge(t, 48, 'badge'),
-      h('div', null, h('div', { class: 'teamname' }, `${t.city} ${t.name}`), h('div', { class: 'muted' }, `Season ${l.season} • Coach ${l.coach.name}`)),
+      h('div', null, h('div', { class: 'teamname' }, `${t.city} ${t.name}`), h('div', { class: 'muted' }, `Season ${l.season} \u2022 Coach ${l.coach.name}`)),
       h('div', { class: 'spacer' }),
       h('span', { class: 'chip' }, 'Record ', h('b', null, `${t.wins}-${t.losses}`)),
-      h('span', { class: 'chip' }, 'Credits ', h('b', null, String(t.credits))),
-      h('span', { class: 'chip hide-mobile' }, 'Cap space ', h('b', null, fmtMoney(capSpace(l, t)))),
+      h('span', { class: 'chip', title: 'Coach Coins' }, coin(), h('b', null, `${t.credits} CC`)),
+      h('span', { class: 'chip', title: 'Current payroll / salary cap / available cap' }, h('b', null, `${fmtMoney(payroll(l, t))} / ${fmtMoney(t.capMillions)}`), h('span', { class: space < 0 ? 'bad' : 'muted' }, ` ${fmtMoney(space)} free`)),
       l.phase !== 'offseason' && next
-        ? h('button', { class: 'btn primary', onclick: () => app.go('pregame') }, 'Next game ▶')
+        ? h('button', { class: 'btn primary', onclick: () => app.go('pregame') }, 'Next game \u25b6')
         : l.phase === 'offseason'
-          ? h('button', { class: 'btn primary', onclick: () => app.go('offseason') }, 'Off-season ▶')
+          ? h('button', { class: 'btn primary', onclick: () => app.go('offseason') }, 'Off-season \u25b6')
           : null,
     ),
     h(
       'nav',
       { class: 'nav', 'aria-label': 'Franchise' },
-      nav.map(([s, label]) => h('button', { class: `btn ${s === active ? 'active' : ''}`, onclick: () => app.go(s) }, label)),
+      nav.map(([s, label]) => h('button', { class: `btn ${s === active ? 'active' : ''}`, 'aria-current': s === active ? 'page' : undefined, onclick: () => app.go(s) }, label)),
       h('div', { class: 'spacer hide-mobile' }),
       h('button', { class: 'btn', onclick: () => { void app.save(); app.league = null; app.go('title'); } }, 'Main Menu'),
     ),
     h('main', { class: 'main' }, content),
   );
+}
+
+/** Confirmation dialog for anything that spends Coach Coins. Resolves true when confirmed. */
+export function confirmPurchase(app: App, title: string, lines: (string | HTMLElement)[], cost: number, balance: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v: boolean) => {
+      if (done) return;
+      done = true;
+      close();
+      resolve(v);
+    };
+    const enough = balance >= cost;
+    const close = app.modal(
+      title,
+      h(
+        'div',
+        { class: 'col' },
+        lines.map((l) => (typeof l === 'string' ? h('p', { style: 'margin:0' }, l) : l)),
+        h('div', { class: 'reward', style: 'border-color:var(--yellow)' }, coin('coin big'), h('div', null, h('div', { class: 'x3 gold' }, `Cost: ${cost} CC`), h('div', { class: enough ? 'muted' : 'bad' }, `You have ${balance} CC${enough ? ` \u2022 ${balance - cost} CC after` : ' \u2022 not enough'}`))),
+      ),
+      {
+        actions: [h('button', { class: 'btn', onclick: () => finish(false) }, 'Cancel'), h('button', { class: 'btn primary', disabled: !enough, onclick: () => finish(true) }, `Spend ${cost} CC`)],
+        onClose: () => finish(false),
+      },
+    );
+  });
 }
 
 export function screenTitle(title: string, ...extra: (HTMLElement | string | null)[]) {

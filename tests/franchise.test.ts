@@ -5,28 +5,32 @@ import { stars } from '../src/sim/players';
 import { advanceDay, nextUserGame, simToUserGame, applyGameResult, withRng } from '../src/sim/season';
 import { simulateGame } from '../src/sim/gameSim';
 import { advanceOffseason, finishResignings, runLottery, runCpuPicks, startNewSeason, currentPick, draftPlayer, finishDraft } from '../src/sim/offseason';
-import { signFreeAgent, releasePlayer, setLineup, askingContract } from '../src/sim/transactions';
+import { buyMarketPlayer, releasePlayer, setLineup } from '../src/sim/transactions';
 import { validateLeague } from '../src/sim/transactions';
 
 const make = (seed = 42, extra = {}) => createLeague({ seed, userTeamId: 'hcg', coachName: 'Coach Test', settings: { ...DEFAULT_SETTINGS, ...extra }, slot: 'test' });
 
 describe('league creation', () => {
-  it('creates 30 legal teams under the cap', () => {
+  it('creates 30 legal seven-man teams under the cap, with a weak user roster', () => {
     const l = make();
     expect(l.teams).toHaveLength(30);
     validateLeague(l);
     for (const t of l.teams) {
-      expect(t.rosterIds.length).toBeGreaterThanOrEqual(12);
+      expect(t.rosterIds.length).toBe(7);
       expect(payroll(l, t)).toBeLessThanOrEqual(t.capMillions);
       expect(t.starters).toHaveLength(5);
     }
-    const all = l.teams.flatMap((t) => t.rosterIds.map((id) => stars(l.players[id])));
-    const hist: Record<string, number> = {};
-    for (const s of all) hist[s] = (hist[s] || 0) + 1;
-    console.log('star histogram', hist);
-    console.log('payrolls', l.teams.map((t) => payroll(l, t)).join(' '));
-    // Both conferences balanced
-    expect(l.teams.filter((t) => t.conference === 'East')).toHaveLength(15);
+    const u = userTeam(l);
+    const us = u.rosterIds.map((id) => stars(l.players[id]));
+    expect(Math.max(...us)).toBeLessThanOrEqual(3);
+    const avg = us.reduce((a, b) => a + b, 0) / us.length;
+    expect(avg).toBeGreaterThanOrEqual(1.5);
+    expect(avg).toBeLessThanOrEqual(2);
+    for (const id of u.rosterIds) expect(l.players[id].contract.salaryMillions).toBeLessThanOrEqual(9);
+    expect(payroll(l, u)).toBeLessThan(45);
+    expect(u.rosterIds.some((id) => l.players[id].potential >= 4)).toBe(true);
+    const cpu = l.teams.filter((t) => t.id !== u.id).flatMap((t) => t.rosterIds.map((id) => stars(l.players[id])));
+    console.log('user stars', us.join(' '), 'cpu avg', (cpu.reduce((a, b) => a + b, 0) / cpu.length).toFixed(2));
   });
   it('schedules a balanced season', () => {
     const l = make(1, { seasonGames: 41 });
@@ -76,6 +80,7 @@ describe('simulation', () => {
     withRng(l, (rng) => runLottery(l, rng));
     expect(l.draft!.order).toHaveLength(60);
     runCpuPicks(l);
+    validateLeague(l); // CPU teams that drafted with a full roster keep a legal lineup
     const pick = currentPick(l);
     if (pick) {
       const best = l.draft!.prospectIds[0];
@@ -84,41 +89,52 @@ describe('simulation', () => {
       runCpuPicks(l);
     }
     finishDraft(l);
-    // Fill the user roster if needed via signings.
-    let tries = 0;
-    while (userTeam(l).rosterIds.length < 13 && tries++ < 40) {
-      const cheap = l.freeAgents.map((id) => l.players[id]).sort((a, b) => askingContract(l, a).salary - askingContract(l, b).salary)[0];
-      const r = signFreeAgent(l, cheap.id);
-      if (r.ok) Object.assign(l, r.league);
-      else l.freeAgents = l.freeAgents.filter((id) => id !== cheap.id);
-    }
     startNewSeason(l);
     expect(l.season).toBe(2);
     expect(l.phase).toBe('regular');
     validateLeague(l);
-    for (const t of l.teams) expect(t.rosterIds.length).toBeGreaterThanOrEqual(12);
+    for (const t of l.teams) expect(t.rosterIds.length).toBeLessThanOrEqual(7);
     simToUserGame(l);
     expect(nextUserGame(l)).toBeTruthy();
   });
 });
 
 describe('transactions', () => {
-  it('rejects an over-cap signing with an explanation and accepts one under the cap', () => {
+  it('rejects an over-cap market signing with an explanation and accepts one with coins and cap room', () => {
     const l = make(3);
     const t = userTeam(l);
-    const star = l.freeAgents.map((id) => l.players[id]).sort((a, b) => stars(b) - stars(a))[0];
-    star.demand = { salaryMillions: 30, yearsRemaining: 3 };
-    // Release to make a roster spot so the cap is the binding constraint.
-    const res = signFreeAgent(l, star.id);
-    expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.error).toMatch(/cap/i);
-    const cheap = l.freeAgents.map((id) => l.players[id]).find((p) => p.id !== star.id)!;
-    cheap.demand = { salaryMillions: 1, yearsRemaining: 1 };
-    const ok = signFreeAgent(l, cheap.id);
+    const offer = l.market.offers[0];
+    const p = l.players[offer.playerId];
+    expect(stars(p)).toBeGreaterThanOrEqual(4);
+    // Not enough coins
+    t.credits = 0;
+    let r = buyMarketPlayer(l, p.id);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/CC/);
+    // Enough coins but no cap room
+    t.credits = 200;
+    l.players[t.rosterIds[0]].contract.salaryMillions = 99;
+    r = buyMarketPlayer(l, p.id);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/cap space/i);
+    l.players[t.rosterIds[0]].contract.salaryMillions = 3;
+    // Full roster (7) blocks too, until someone is released.
+    r = buyMarketPlayer(l, p.id);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/Release/);
+    const rel = releasePlayer(l, t.rosterIds[6]);
+    expect(rel.ok).toBe(true);
+    if (!rel.ok) return;
+    const ok = buyMarketPlayer(rel.league, p.id);
     expect(ok.ok).toBe(true);
-    if (ok.ok) expect(userTeam(ok.league).rosterIds).toContain(cheap.id);
+    if (ok.ok) {
+      const ut = userTeam(ok.league);
+      expect(ut.rosterIds).toContain(p.id);
+      expect(ut.credits).toBe(200 - offer.coinPrice);
+      expect(ok.league.market.offers.some((o) => o.playerId === p.id)).toBe(false);
+    }
     // The original league is untouched (atomic).
-    expect(t.rosterIds).not.toContain(cheap.id);
+    expect(t.rosterIds).not.toContain(p.id);
   });
   it('injured players cannot be given minutes or start', () => {
     const l = make(4);
@@ -126,13 +142,13 @@ describe('transactions', () => {
     const p = l.players[t.starters[0]];
     p.injury = { type: 'Sprained Ankle', gamesRemaining: 3 };
     const r = setLineup(l, t.starters, t.rotation);
+    expect(t.starters).toHaveLength(5);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/injured/);
   });
   it('release creates dead money', () => {
     const l = make(5);
     const t = userTeam(l);
-    // need > 12 players
     const victim = t.rotation[t.rotation.length - 1];
     const r = releasePlayer(l, victim);
     expect(r.ok).toBe(true);

@@ -5,11 +5,13 @@
  */
 import { Rng, clamp } from '../core/rng';
 import { emptyStats, type BoxLine, type BoxScore, type LeagueSave, type Player, type PlayerStats, type PlayoffSeries, type ScheduledGame, type Team } from '../core/types';
-import { gameCredits } from './economy';
+import { COINS } from './config';
+import { tickMarket } from './market';
+import { updateMorale } from './morale';
 import { maybeTriggerEvent } from './events';
 import { simulateGame } from './gameSim';
 import { addNews, repairRotation, sortRotation, standings, teamById } from './league';
-import { applyDevelopment, fullName, stars } from './players';
+import { applyDevelopment, fullName } from './players';
 
 export function withRng<T>(league: LeagueSave, f: (rng: Rng) => T): T {
   const rng = new Rng(league.rngState || league.seed);
@@ -81,6 +83,7 @@ export function applyGameResult(league: LeagueSave, box: BoxScore, rng: Rng): bo
   const homeWon = box.homeScore > box.awayScore;
   const playoff = !!game.playoff;
   const user = league.userTeamId;
+  let reward: LeagueSave['lastReward'] | undefined;
 
   for (const [team, won, isHome, pf, pa] of [
     [home, homeWon, true, box.homeScore, box.awayScore],
@@ -102,9 +105,15 @@ export function applyGameResult(league: LeagueSave, box: BoxScore, rng: Rng): bo
       team.pointsAgainst += pa;
     }
     team.streak = won ? Math.max(1, team.streak + 1) : Math.min(-1, team.streak - 1);
-    team.credits += gameCredits(team, won, isHome, playoff);
-    if (isHome && won) team.fanSupport = clamp(team.fanSupport + team.facilities.arena, 0, 100);
-    if (!won) team.fanSupport = clamp(team.fanSupport - 1, 0, 100);
+    const coins = gameCoins(team, won);
+    team.credits += coins;
+    if (team.id === user) {
+      reward = { gameId: box.gameId, coins, reasons: [won ? `Win +${COINS.win} CC` : `Loss +${COINS.loss} CC`] };
+      if (coins > (won ? COINS.win : COINS.loss)) reward.reasons.push(`Fans fired up +${COINS.fanBonus} CC`);
+    }
+    // Fan support: wins (more at home with fan engagement) raise it, losing streaks drain it.
+    if (won) team.fanSupport = clamp(team.fanSupport + 2 + (isHome ? team.facilities.fans : 0), 0, 100);
+    else team.fanSupport = clamp(team.fanSupport - 2 - (team.streak <= -3 ? 1 : 0), 0, 100);
     if (team.id === user) {
       if (won) league.coach.wins++;
       else league.coach.losses++;
@@ -126,20 +135,17 @@ export function applyGameResult(league: LeagueSave, box: BoxScore, rng: Rng): bo
         const mins = l.seconds / 60;
         p.condition = clamp(p.condition - mins * 0.32 * (1.3 - p.ratings.stamina * 0.05), 30, 100);
         const perf = l.points + 1.2 * (l.offRebounds + l.defRebounds) + 1.5 * l.assists + 2 * (l.steals + l.blocks) - l.turnovers - (l.fga - l.fgm) * 0.5;
-        const train = 1 + (team.facilities.training - 1) * 0.12;
+        const train = 1 + team.facilities.training * 0.15 + team.staff.development * 0.12;
         const learner = p.traits.includes('Quick Learner') ? 1.25 : 1;
         const youth = p.age <= 24 ? 1.3 : p.age >= 31 ? 0.6 : 1;
         p.xp += Math.max(1, (mins * 0.35 + Math.max(0, perf) * 0.25) * train * learner * youth);
         recordSingleGame(league, p, l, team);
-      } else if (!p.injury) {
-        // Healthy scratch: stars hate sitting.
-        p.morale = clamp(p.morale - (stars(p) >= 3 ? 4 : 1) - (p.traits.includes('Selfish') ? 2 : 0), 0, 100);
+        if (team.id === user && l.points >= 30) earnAchievement(league, team, 'bigGame', reward);
       }
-      p.morale = clamp(p.morale + (won ? 1.5 : -1), 0, 100);
-      if (l.seconds / 60 > 25 && stars(p) >= 2.5) p.morale = clamp(p.morale + 0.5, 0, 100);
       const raised = applyDevelopment(p, rng);
       if (raised.length && team.id === user) addNews(league, `${fullName(p)} improved ${raised.join(', ')} (+${raised.length}).`, 'good');
     }
+    updateMorale(league, team, lines, won);
   }
 
   // Injury countdown for players whose team just played, then new injuries.
@@ -159,7 +165,7 @@ export function applyGameResult(league: LeagueSave, box: BoxScore, rng: Rng): bo
     const p = league.players[inj.playerId];
     if (!p || p.injury) continue;
     const team = home.rosterIds.includes(p.id) ? home : away;
-    const med = 1 - (team.facilities.medical - 1) * 0.1;
+    const med = 1 - team.facilities.recovery * 0.12;
     p.injury = { type: inj.injury.type, gamesRemaining: Math.max(1, Math.round(inj.injury.gamesRemaining * med)) };
     if (team.id === user || p.injury.gamesRemaining >= 10) {
       addNews(league, `${team.abbr} ${fullName(p)} out ${p.injury.gamesRemaining} game${p.injury.gamesRemaining > 1 ? 's' : ''} (${p.injury.type}).`, 'bad');
@@ -170,8 +176,15 @@ export function applyGameResult(league: LeagueSave, box: BoxScore, rng: Rng): bo
     else sortRotation(league, team);
   }
 
-  if (game.playoff) applyPlayoffGame(league, game, homeWon ? home.id : away.id);
+  if (game.playoff) applyPlayoffGame(league, game, homeWon ? home.id : away.id, reward);
   if (home.id === user || away.id === user) {
+    const ut = home.id === user ? home : away;
+    if ((home.id === user) === homeWon) {
+      earnAchievement(league, ut, 'firstWin', reward);
+      if (ut.streak >= 5) earnAchievement(league, ut, 'streak5', reward);
+    }
+    if (reward) league.lastReward = reward;
+    if (league.market) tickMarket(league, rng);
     const userWon = (home.id === user) === homeWon;
     const opp = home.id === user ? away : home;
     addNews(
@@ -181,6 +194,26 @@ export function applyGameResult(league: LeagueSave, box: BoxScore, rng: Rng): bo
     );
   }
   return true;
+}
+
+/** Coach Coins for a result: flat win/loss amounts, plus a small bonus on wins when fans are fired up. */
+export function gameCoins(team: Team, won: boolean) {
+  let c = won ? COINS.win : COINS.loss;
+  if (won && team.fanSupport >= COINS.fanBonusThreshold) c += COINS.fanBonus;
+  return c;
+}
+
+/** Pay a one-time milestone bonus to the user's team. */
+export function earnAchievement(league: LeagueSave, team: Team, key: string, reward?: LeagueSave['lastReward']) {
+  const a = COINS.achievements[key];
+  if (!a || league.achievements.includes(key) || team.id !== league.userTeamId) return;
+  league.achievements.push(key);
+  team.credits += a.coins;
+  if (reward) {
+    reward.coins += a.coins;
+    reward.reasons.push(`${a.label} +${a.coins} CC`);
+  }
+  addNews(league, `Milestone: ${a.label} (+${a.coins} CC).`, 'good');
 }
 
 function recordSingleGame(league: LeagueSave, p: Player, l: BoxLine, team: Team) {
@@ -205,7 +238,7 @@ function recordSingleGame(league: LeagueSave, p: Player, l: BoxLine, team: Team)
 /** Daily recovery: condition returns, faster with a better medical center. */
 function dailyRecovery(league: LeagueSave) {
   for (const t of league.teams) {
-    const rec = 9 + t.facilities.medical * 2;
+    const rec = 9 + t.facilities.recovery * 4;
     for (const id of t.rosterIds) {
       const p = league.players[id];
       if (p) p.condition = clamp(p.condition + rec, 0, 100);
@@ -303,8 +336,9 @@ export function startPlayoffs(league: LeagueSave) {
     if (o && !o.done) {
       o.done = true;
       teamById(league, user).credits += o.reward;
-      addNews(league, `Objective complete: ${o.label} (+${o.reward} credits).`, 'good');
+      addNews(league, `Objective complete: ${o.label} (+${o.reward} CC).`, 'good');
     }
+    earnAchievement(league, teamById(league, user), 'playoffs');
   }
   schedulePlayoffGames(league);
 }
@@ -383,7 +417,7 @@ export function schedulePlayoffGames(league: LeagueSave) {
   }
 }
 
-function applyPlayoffGame(league: LeagueSave, game: ScheduledGame, winnerId: string) {
+function applyPlayoffGame(league: LeagueSave, game: ScheduledGame, winnerId: string, reward?: LeagueSave['lastReward']) {
   const s = league.playoffs.find((x) => x.id === game.playoff!.seriesId);
   if (!s) return;
   if (winnerId === s.highSeedId) s.highWins++;
@@ -393,6 +427,7 @@ function applyPlayoffGame(league: LeagueSave, game: ScheduledGame, winnerId: str
     const w = teamById(league, s.winnerId);
     const l = teamById(league, s.winnerId === s.highSeedId ? s.lowSeedId : s.highSeedId);
     const user = league.userTeamId;
+    if (w.id === user) earnAchievement(league, w, 'seriesWin', reward);
     if (w.id === user || l.id === user || s.conference === 'Finals') {
       addNews(league, `${w.city} ${w.name} win the series ${Math.max(s.highWins, s.lowWins)}-${Math.min(s.highWins, s.lowWins)} over ${l.city}.`, w.id === user ? 'good' : l.id === user ? 'bad' : 'info');
     }
@@ -411,7 +446,11 @@ function finishPlayoffs(league: LeagueSave, finals: PlayoffSeries) {
   if (champ === league.userTeamId) {
     league.coach.titles++;
     league.coach.reputation = clamp(league.coach.reputation + 15, 0, 100);
-    t.credits += 40;
+    t.credits += COINS.championship;
+    if (league.lastReward) {
+      league.lastReward.coins += COINS.championship;
+      league.lastReward.reasons.push(`Championship +${COINS.championship} CC`);
+    }
     t.fanSupport = clamp(t.fanSupport + 15, 0, 100);
   }
   addNews(league, `${t.city} ${t.name} are ${league.settings.leagueName} champions!`, champ === league.userTeamId ? 'good' : 'info');

@@ -8,11 +8,12 @@ import { InputController, keyLabel, type ControlAction } from '../../game/input'
 import { makeGame, type MatchScene } from '../../game/render/MatchScene';
 import { createLeague, DEFAULT_SETTINGS, teamById, teamRating, userTeam } from '../../sim/league';
 import { matchConfig } from '../../sim/matchSetup';
-import { fullName, stars } from '../../sim/players';
+import { fullName, moraleBand, stars } from '../../sim/players';
+import { gameDayLineup } from '../../sim/gameSim';
 import { advanceDay, gameById, nextUserGame, simToUserGame } from '../../sim/season';
 import type { App } from '../app';
 import { h } from '../dom';
-import { badge, boxScoreView, portrait, starsEl } from '../widgets';
+import { badge, boxScoreView, coin, moraleEl, portrait, starsEl } from '../widgets';
 import { simNextUserGame } from './home';
 import { TEAM_SEEDS } from '../../sim/data';
 import { seg } from './career';
@@ -41,11 +42,24 @@ export function pregameScreen(app: App) {
       'section',
       { class: 'panel', style: `border-top:6px solid ${t.colors[0]}` },
       h('div', { class: 'row' }, badge(t, 48), h('div', null, h('div', { class: 'x3' }, `${t.city} ${t.name}`), h('div', { class: 'muted' }, `${t.wins}-${t.losses} • Team `, starsEl(Math.round(teamRating(l, t) * 2) / 2)))),
-      h('h3', { style: 'margin-top:10px' }, 'Starters'),
-      t.starters.map((id) => {
-        const p = l.players[id];
-        return h('div', { class: 'row', style: 'margin:4px 0' }, portrait(l, p), h('div', { style: 'flex:1' }, h('div', null, `#${p.jerseyNumber} ${fullName(p)}`), h('div', { class: 'tiny muted' }, `${p.position} • ${p.archetype} • ${(p.seasonStats.points / Math.max(1, p.seasonStats.games)).toFixed(1)} ppg`)), starsEl(stars(p)));
-      }),
+      h('h3', { style: 'margin-top:10px' }, 'Game-day lineup'),
+      (() => {
+        const day = gameDayLineup(l, t);
+        const row = (p: (typeof day.players)[number], bench: boolean) =>
+          h(
+            'div',
+            { class: 'row', style: 'margin:4px 0' },
+            portrait(l, p),
+            h(
+              'div',
+              { style: 'flex:1' },
+              h('div', null, p.replacement ? fullName(p) : `#${p.jerseyNumber} ${fullName(p)}`, bench ? h('span', { class: 'tiny muted' }, ' (bench)') : null),
+              h('div', { class: 'tiny muted' }, p.replacement ? '0.5-star replacement \u2022 no contract' : `${p.position} \u2022 ${p.archetype} \u2022 ${moraleBand(p.morale).label}`),
+            ),
+            starsEl(stars(p)),
+          );
+        return [...day.players.slice(0, 5).map((p) => row(p, false)), ...day.players.slice(5).map((p) => row(p, true))];
+      })(),
       (() => {
         const inj = t.rosterIds.map((id) => l.players[id]).filter((p) => p.injury);
         return inj.length ? h('div', { class: 'bad tiny', style: 'margin-top:6px' }, `Out: ${inj.map((p) => p.lastName).join(', ')}`) : null;
@@ -428,10 +442,22 @@ export function postgameScreen(app: App, params: Record<string, unknown>) {
   const pog = mine.slice().sort((a, b) => b.points + 1.2 * (b.offRebounds + b.defRebounds) + 1.5 * b.assists - (a.points + 1.2 * (a.offRebounds + a.defRebounds) + 1.5 * a.assists))[0];
   const pogPlayer = pog ? l.players[pog.playerId] : null;
   if (won) sfx.fanfare();
+  const reward = l.lastReward;
+  if (reward && reward.gameId === box.gameId) setTimeout(() => sfx.confirm(), 300);
+  const notes = t.rosterIds.map((id) => l.players[id]).filter((p) => p.moraleNote && p.recent?.length);
   return h(
     'div',
     { class: 'main', style: 'margin:0 auto' },
     h('div', { class: 'screen-title' }, h('h1', { class: won ? 'good' : 'bad' }, won ? 'Victory!' : 'Defeat'), h('span', { class: 'muted' }, params.simulated ? 'Simulated' : 'Played live')),
+    reward && reward.gameId === box.gameId
+      ? h(
+          'div',
+          { class: 'reward', role: 'status', style: 'margin-bottom:14px' },
+          coin('coin big'),
+          h('div', { class: 'amount' }, `+${reward.coins} CC`),
+          h('div', { class: 'col', style: 'gap:2px' }, reward.reasons.map((r) => h('span', { class: 'tiny' }, r)), h('span', { class: 'muted' }, `Balance: ${t.credits} CC`)),
+        )
+      : null,
     h(
       'div',
       { class: 'grid two' },
@@ -452,6 +478,12 @@ export function postgameScreen(app: App, params: Record<string, unknown>) {
           { class: 'panel' },
           h('h2', null, 'Around the league'),
           h('ul', { class: 'news' }, l.news.slice(0, 10).map((n) => h('li', { class: n.kind }, n.text))),
+        ),
+        h(
+          'section',
+          { class: 'panel' },
+          h('h2', null, 'Morale'),
+          h('div', { class: 'col', style: 'gap:6px' }, notes.length ? notes.map((p) => h('div', null, h('div', null, `${p.firstName[0]}. ${p.lastName}`), moraleEl(p))) : h('div', { class: 'muted' }, 'No change.')),
         ),
         h(
           'section',
