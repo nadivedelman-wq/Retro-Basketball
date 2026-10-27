@@ -312,6 +312,41 @@ export function simToUserGame(league: LeagueSave) {
   }
 }
 
+/**
+ * Career start: the season is simulated up to its final day with the user's franchise holding
+ * the worst record in the league. The user then plays the finale and heads into the off-season.
+ * Coins, coach record, fan support, milestones and news from the simulated games are not kept.
+ */
+export function startAtSeasonFinale(league: LeagueSave) {
+  const user = teamById(league, league.userTeamId);
+  const keep = { credits: user.credits, fanSupport: user.fanSupport, coach: { ...league.coach }, news: league.news.slice(), achievements: league.achievements.slice() };
+  const lastDay = Math.max(...league.schedule.map((g) => g.day));
+  while (league.day < lastDay) {
+    const game = league.schedule.find((g) => g.day === league.day && !g.played && (g.homeId === user.id || g.awayId === user.id));
+    const box = game
+      ? withRng(league, (rng) => {
+          // Only win while staying strictly below every other team's win total.
+          const minWins = Math.min(...league.teams.filter((t) => t.id !== user.id).map((t) => t.wins));
+          const wantWin = user.wins + 1 < minWins && rng.chance(0.35);
+          const userWon = (b: BoxScore) => (b.homeId === user.id) === b.homeScore > b.awayScore;
+          let b = simulateGame(league, game, rng);
+          for (let i = 0; i < 40 && userWon(b) !== wantWin; i++) b = simulateGame(league, game, rng);
+          return b;
+        })
+      : undefined;
+    advanceDay(league, box);
+  }
+  user.credits = keep.credits;
+  user.fanSupport = keep.fanSupport;
+  league.coach = keep.coach;
+  league.achievements = keep.achievements;
+  league.news = keep.news;
+  league.pendingEvent = undefined;
+  league.lastReward = undefined;
+  addNews(league, `You take over a ${user.wins}-${user.losses} team, last in the league, with one game left in the season.`, 'info');
+  league.updatedAt = Date.now();
+}
+
 // ------------------------------------------------------------------------- playoffs
 
 export function winsNeeded(league: LeagueSave) {

@@ -300,7 +300,7 @@ export function createLeague(opts: { seed: number; userTeamId: string; coachName
   const user = league.teams.find((t) => t.id === opts.userTeamId)!;
   user.credits = 10;
   for (const id of user.rosterIds) league.devBaseline[id] = stars(league.players[id]);
-  league.news.push({ day: 0, season: 1, kind: 'good', text: `${opts.coachName} named head coach of the ${teamName(user)}.` });
+  league.news.push({ day: 0, season: 1, kind: 'good', text: `${opts.coachName} named head coach of ${user.name ? `the ${teamName(user)}` : teamName(user)}.` });
   league.rngState = rng.state;
   return league;
 }

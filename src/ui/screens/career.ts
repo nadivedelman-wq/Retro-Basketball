@@ -5,6 +5,7 @@ import type { Difficulty, LeagueSettings } from '../../core/types';
 import { SLOTS, deleteSlot, exportJson, importJson, listSlots, loadLeague, saveLeague, type SlotId, type SlotMeta } from '../../persist/save';
 import { TEAM_SEEDS } from '../../sim/data';
 import { DEFAULT_SETTINGS, createLeague } from '../../sim/league';
+import { startAtSeasonFinale } from '../../sim/season';
 import type { App } from '../app';
 import { h } from '../dom';
 
@@ -136,6 +137,7 @@ export function newCareerScreen(app: App) {
     settings.leagueName = (leagueInput.value || DEFAULT_SETTINGS.leagueName).replace(/[^A-Za-z0-9 .'-]/g, '').slice(0, 28) || DEFAULT_SETTINGS.leagueName;
     const seed = hashString(coach + teamId + Date.now());
     app.league = createLeague({ seed, userTeamId: teamId, coachName: coach, settings, slot });
+    startAtSeasonFinale(app.league);
     await app.save();
     sfx.fanfare();
     app.go('home');
