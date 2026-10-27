@@ -1,4 +1,4 @@
-# Pixel Hardwood
+# Retro Basketball
 
 A browser-based pixel-art basketball game: arcade 5-on-5 games you control, plus an endless franchise mode (rosters, contracts, salary cap, staff, facilities, draft, playoffs, history).
 

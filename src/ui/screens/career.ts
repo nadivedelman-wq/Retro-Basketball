@@ -212,7 +212,7 @@ export function loadScreen(app: App) {
                     const l = await loadLeague(s.slot);
                     if (!l) return;
                     const blob = new Blob([exportJson(l)], { type: 'application/json' });
-                    const a = h('a', { href: URL.createObjectURL(blob), download: `pixel-hardwood-${l.coach.name.replace(/\s+/g, '_')}-S${l.season}.json` });
+                    const a = h('a', { href: URL.createObjectURL(blob), download: `retro-basketball-${l.coach.name.replace(/\s+/g, '_')}-S${l.season}.json` });
                     document.body.appendChild(a);
                     a.click();
                     a.remove();

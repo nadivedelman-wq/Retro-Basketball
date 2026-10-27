@@ -38,8 +38,8 @@ function wordmark(): HTMLCanvasElement {
       for (let xx = 0; xx < W; xx++) if (tmp.get(xx, yy)[3]) b.set(xx, yy, (yy - y) % scale === 0 && t > 0.45 && t < 0.56 ? hexToRgba(PALETTE.ink) : col);
     }
   };
-  draw('PIXEL', 4, 5, PALETTE.yellow, PALETTE.gold);
-  draw('HARDWOOD', 46, 4, PALETTE.ink, PALETTE.sky);
+  draw('RETRO', 4, 5, PALETTE.yellow, PALETTE.gold);
+  draw('BASKETBALL', 50, 3, PALETTE.ink, PALETTE.sky);
   // Court stripe under the logo
   b.rect(20, 82, 200, 2, hexToRgba(PALETTE.yellow));
   b.rect(20, 84, 200, 1, hexToRgba(PALETTE.royal));

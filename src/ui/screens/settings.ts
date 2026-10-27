@@ -101,7 +101,7 @@ export function settingsScreen(app: App) {
               class: 'btn',
               onclick: () => {
                 const blob = new Blob([exportJson(app.league!)], { type: 'application/json' });
-                const a = h('a', { href: URL.createObjectURL(blob), download: `pixel-hardwood-S${l.season}.json` });
+                const a = h('a', { href: URL.createObjectURL(blob), download: `retro-basketball-S${l.season}.json` });
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
