@@ -90,4 +90,35 @@ describe('trades', () => {
     expect(passPickCoins(l, { round: 1, pick: 1 })).toBe(DRAFT_PASS.firstRoundMax);
     expect(passPickCoins(l, { round: 1, pick: 30 })).toBe(DRAFT_PASS.firstRoundMin);
   });
+
+  it('trades stay open during the draft, for picks still to be made in it', () => {
+    let l = make(4);
+    let guard = 0;
+    while (l.phase !== 'offseason' && guard++ < 500) advanceDay(l);
+    advanceOffseason(l);
+    withRng(l, (rng) => finishResignings(l, rng));
+    withRng(l, (rng) => runLottery(l, rng));
+    runCpuPicks(l);
+    expect(l.offseasonStep).toBe('draft');
+    const at = l.draft!.current;
+    const best = userTeam(l).rosterIds.map((id) => l.players[id]).filter((p) => tradeRound(p)).sort((a, b) => stars(b) - stars(a))[0];
+    l = unwrap(shopPlayer(l, best.id));
+    const o = l.tradeOffer!;
+    expect(o).toBeTruthy();
+    l = unwrap(acceptTrade(l));
+    expect(userTeam(l).rosterIds).not.toContain(best.id);
+    if (o.pick.season === l.season) {
+      const slot = l.draft!.order.find((s, i) => i > at && s.round === o.pick.round && s.originalTeamId === o.pick.originalTeamId)!;
+      expect(slot.teamId).toBe('nyc');
+    } else expect(o.pick.season).toBe(l.season + 1);
+    validateLeague(l);
+    // Finishing the draft: the user makes every pick they now hold.
+    let made = 0;
+    while (currentPick(l) && made++ < 10) {
+      expect(currentPick(l)!.teamId).toBe('nyc');
+      passPickForCoins(l);
+      runCpuPicks(l);
+    }
+    expect(l.offseasonStep).toBe('freeAgency');
+  });
 });

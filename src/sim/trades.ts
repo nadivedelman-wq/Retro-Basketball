@@ -17,9 +17,16 @@ export function tradePickSeason(league: LeagueSave) {
   return league.phase === 'offseason' && (step === 'freeAgency' || step === 'done') ? league.season + 1 : league.season;
 }
 
-/** Trades are closed while the draft is being held. */
-export function tradesOpen(league: LeagueSave) {
-  return !(league.phase === 'offseason' && league.offseasonStep === 'draft');
+/** During the draft, the slot in this draft's order that a pick still holds (undefined once it has been used). */
+function openDraftSlot(league: LeagueSave, pick: { season: number; round: 1 | 2; originalTeamId: string }) {
+  const d = league.draft;
+  if (league.offseasonStep !== 'draft' || !d || pick.season !== league.season) return undefined;
+  return d.order.find((s, i) => i >= d.current && s.round === pick.round && s.originalTeamId === pick.originalTeamId);
+}
+
+/** A pick can still be traded: during the draft, this draft's picks only until they are used. */
+function pickTradeable(league: LeagueSave, pick: { season: number; round: 1 | 2; originalTeamId: string }) {
+  return league.offseasonStep !== 'draft' || pick.season !== league.season || !!openDraftSlot(league, pick);
 }
 
 /** What a club thinks a player is worth: his stars, with upside for players 24 and under. */
@@ -50,17 +57,20 @@ function canTake(league: LeagueSave, team: Team, p: Player) {
 export function findTradeOffer(league: LeagueSave, playerId: string, rng: Rng): TradeOffer | null {
   const user = userTeam(league);
   const p = league.players[playerId];
-  if (!p || !user.rosterIds.includes(playerId) || !tradesOpen(league)) return null;
+  if (!p || !user.rosterIds.includes(playerId)) return null;
   const best = tradeRound(p);
   if (!best) return null;
-  const season = tradePickSeason(league);
+  // During the draft, clubs offer picks still to be made in it, or next season's when those are gone.
+  const seasons = league.offseasonStep === 'draft' ? [league.season, league.season + 1] : [tradePickSeason(league)];
   for (const round of best === 1 ? ([1, 2] as const) : ([2] as const)) {
-    const options = league.teams
-      .filter((t) => t.id !== user.id && canTake(league, t, p))
-      .flatMap((t) => league.draftPicks.filter((d) => d.season === season && d.round === round && d.ownerTeamId === t.id).map((pick) => ({ t, pick })));
-    if (!options.length) continue;
-    const o = rng.pick(options);
-    return { id: newId(league, 'tr'), teamId: o.t.id, playerId, pick: { season, round, originalTeamId: o.pick.originalTeamId } };
+    for (const season of seasons) {
+      const options = league.teams
+        .filter((t) => t.id !== user.id && canTake(league, t, p))
+        .flatMap((t) => league.draftPicks.filter((d) => d.season === season && d.round === round && d.ownerTeamId === t.id && pickTradeable(league, d)).map((pick) => ({ t, pick })));
+      if (!options.length) continue;
+      const o = rng.pick(options);
+      return { id: newId(league, 'tr'), teamId: o.t.id, playerId, pick: { season, round, originalTeamId: o.pick.originalTeamId } };
+    }
   }
   return null;
 }
@@ -91,7 +101,6 @@ export function shopPlayer(league: LeagueSave, playerId: string): TxResult {
   return transact(league, (d) => {
     const p = d.players[playerId];
     if (!p || !userTeam(d).rosterIds.includes(playerId)) throw new TxError('Only your own players can be traded.');
-    if (!tradesOpen(d)) throw new TxError('Trades are closed during the draft.');
     const key = `${d.season}:${d.phase}:${d.offseasonStep ?? ''}:${d.day}`;
     if (d.tradeAsked?.[playerId] === key) throw new TxError(`You already shopped ${fullName(p)} today. Clubs will listen again after your next game.`);
     d.tradeAsked = Object.fromEntries(Object.entries(d.tradeAsked ?? {}).filter(([, v]) => v === key));
@@ -113,7 +122,7 @@ export function acceptTrade(league: LeagueSave): TxResult {
     d.tradeOffer = undefined;
     if (!p || !user.rosterIds.includes(p.id)) throw new TxError('That player is no longer on your roster.');
     if (!pick || pick.ownerTeamId !== club.id) throw new TxError(`${teamName(club)} no longer owns that pick.`);
-    if (!tradesOpen(d)) throw new TxError('Trades are closed during the draft.');
+    if (!pickTradeable(d, pick)) throw new TxError('That pick has already been used in the draft.');
     if (!canTake(d, club, p)) throw new TxError(`${teamName(club)} can no longer fit ${fullName(p)} under its cap.`);
     const label = pickLabel(d, o).replace(/^their /, `${teamName(club)}'s `);
     if (club.rosterIds.length >= ROSTER.max) {
@@ -131,6 +140,8 @@ export function acceptTrade(league: LeagueSave): TxResult {
     p.jerseyNumber = freeNumber(d, club, p.jerseyNumber);
     sortRotation(d, club);
     pick.ownerTeamId = user.id;
+    const slot = openDraftSlot(d, pick);
+    if (slot) slot.teamId = user.id;
     addNews(d, `Traded ${fullName(p)} to ${teamName(club)} for ${label}.`, 'good');
     return `Trade done: ${fullName(p)} for ${label}.`;
   });

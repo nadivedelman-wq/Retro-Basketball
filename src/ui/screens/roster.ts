@@ -5,7 +5,7 @@ import { releaseCost } from '../../sim/economy';
 import { teamById, userTeam } from '../../sim/league';
 import { ARCHETYPES, TRAITS, fullName, overall, stars } from '../../sim/players';
 import { editPlayer, releasePlayer } from '../../sim/transactions';
-import { shopPlayer, tradesOpen } from '../../sim/trades';
+import { shopPlayer } from '../../sim/trades';
 import { showTradeOffer } from '../trade';
 import type { App } from '../app';
 import { fmtMoney, h, pct, perGame } from '../dom';
@@ -95,8 +95,7 @@ export function openPlayer(app: App, playerId: string) {
         'button',
         {
           class: 'btn',
-          disabled: !tradesOpen(l),
-          title: tradesOpen(l) ? 'See if a club will give a draft pick for him' : 'Trades are closed during the draft',
+          title: 'See if a club will give a draft pick for him',
           onclick: () => {
             close();
             if (app.commit(shopPlayer(app.league!, p.id)) && app.league?.tradeOffer?.playerId === p.id) showTradeOffer(app);
